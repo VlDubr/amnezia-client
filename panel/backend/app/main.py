@@ -1,19 +1,26 @@
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.api import admin_servers, admin_users, audit, auth, configs, jobs, me
+from app.api import admin_servers, admin_users, audit, auth, configs, jobs, me, traffic
 from app.config import Settings, get_settings
 from app.db.base import make_engine, make_sessionmaker
 from app.domain.clock import Clock, SystemClock
 from app.errors import install_error_handlers
 from app.jobs.handlers import build_handlers
+from app.jobs.periodic import build_scheduler
+from app.jobs.queue import requeue_stale
 from app.jobs.worker import Worker
 from app.security.ratelimit import RateLimiter
 from app.security.secretbox import SecretBox
 from app.services.servers import make_remote_factory
 from app.ssh.conn import fetch_host_key
+
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 
 def create_app(settings: Settings | None = None,
@@ -26,8 +33,21 @@ def create_app(settings: Settings | None = None,
     sessionmaker = sessionmaker or make_sessionmaker(engine)
 
     @asynccontextmanager
-    async def lifespan(_: FastAPI):
+    async def lifespan(app_: FastAPI):
+        stop = asyncio.Event()
+        worker_task = scheduler = None
+        if settings.scheduler_enabled:
+            async with sessionmaker() as db:
+                await requeue_stale(db)
+            worker_task = asyncio.create_task(app_.state.worker.run_forever(stop))
+            scheduler = build_scheduler(sessionmaker)
+            scheduler.start()
         yield
+        stop.set()
+        if scheduler is not None:
+            scheduler.shutdown(wait=False)
+        if worker_task is not None:
+            await worker_task
         if owns_engine:
             await engine.dispose()
 
@@ -58,4 +78,5 @@ def create_app(settings: Settings | None = None,
     app.include_router(admin_users.router)
     app.include_router(configs.admin_router)
     app.include_router(configs.me_router)
+    app.include_router(traffic.router)
     return app
