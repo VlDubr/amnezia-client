@@ -29,6 +29,8 @@ describe("route guards", () => {
     const i18n = (await import("../i18n")).default;
     await i18n.changeLanguage("ru");
     expect(errorText(new ApiError(409, "config_limit", "x"))).toBe("Достигнут лимит конфигов");
-    expect(errorText(new ApiError(418, "teapot", "I am a teapot"))).toBe("I am a teapot");
+    expect(errorText(new ApiError(418, "teapot", "I am a teapot"))).toBe("Что-то пошло не так (HTTP 418)");
+    expect(errorText(new ApiError(502, "http_502", ""))).toBe("Что-то пошло не так (HTTP 502)");
+    expect(errorText(new ApiError(409, "conflict", "x"))).toBe("Конфликт данных. Обновите страницу и повторите.");
   });
 });

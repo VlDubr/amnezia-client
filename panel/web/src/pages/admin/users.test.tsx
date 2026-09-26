@@ -181,6 +181,28 @@ describe("admin user page", () => {
     expect(await screen.findByText("Достигнут лимит конфигов")).toBeInTheDocument();
   });
 
+  it("keeps unsaved edits when the page data refreshes", async () => {
+    let current = detail();
+    userPage(current);
+    server.use(
+      http.get("/api/admin/users/1", () => HttpResponse.json(current)),
+      http.post("/api/admin/configs/1/block", () => {
+        // the refetched user differs (the config is now blocked), so the query data gets a new reference
+        current = detail({ configs: [config({ status: "blocked", blocked_by: "admin" })] });
+        return HttpResponse.json(current.configs[0]);
+      }),
+    );
+    renderApp("/admin/users/1");
+    const limit = await screen.findByLabelText(/Лимит конфигов/);
+    await userEvent.clear(limit);
+    await userEvent.type(limit, "9");
+    const row = screen.getByText("Phone").closest("tr")!;
+    await userEvent.click(within(row).getByRole("button", { name: "Заблокировать" }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Да$/ }));
+    expect(await within(row).findByText("Заблокирован администратором")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Лимит конфигов/)).toHaveValue("9");
+  });
+
   it("admin can unblock any config", async () => {
     userPage(detail({ configs: [config({ status: "blocked", blocked_by: "user" })] }));
     let called = false;

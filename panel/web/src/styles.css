@@ -1,0 +1,6 @@
+/* The QR SVG comes from the backend with a viewBox only; fit it to its box. */
+.panel-qr svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}

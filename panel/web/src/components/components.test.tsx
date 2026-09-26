@@ -22,6 +22,7 @@ describe("ShareModal", () => {
     const link = screen.getByRole("link", { name: /Скачать/ });
     expect(link).toHaveAttribute("download", "nl-1.conf");
     expect(screen.getByTestId("qr")).toBeInTheDocument();
+    expect(screen.getByTestId("qr").parentElement).toHaveClass("panel-qr"); // CSS scales the SVG to the box
   });
 
   it("does not render a QR that is not an SVG document", () => {

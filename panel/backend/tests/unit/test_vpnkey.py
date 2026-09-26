@@ -41,3 +41,9 @@ def test_decode_rejects_garbage():
 def test_qr_svg():
     svg = qr_svg("vpn://abc")
     assert svg.lstrip().startswith("<?xml") or svg.lstrip().startswith("<svg")
+
+
+def test_qr_svg_scales_and_has_a_light_background():
+    svg = qr_svg("vpn://" + "A" * 900)
+    assert "viewBox" in svg and 'width="' not in svg.split(">", 1)[0]
+    assert "#fff" in svg

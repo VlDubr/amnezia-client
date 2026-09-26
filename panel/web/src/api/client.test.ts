@@ -48,3 +48,14 @@ describe("api client", () => {
     setUnauthorizedHandler(null);
   });
 });
+
+describe("role mismatch", () => {
+  it("treats 403 forbidden like a lost session", async () => {
+    const handler = vi.fn();
+    setUnauthorizedHandler(handler);
+    server.use(http.get("/api/admin/users", () => HttpResponse.json({ code: "forbidden", message: "" }, { status: 403 })));
+    await api("/api/admin/users").catch(() => {});
+    expect(handler).toHaveBeenCalledOnce();
+    setUnauthorizedHandler(null);
+  });
+});

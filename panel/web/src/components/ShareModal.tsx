@@ -31,6 +31,7 @@ export function ShareModal({ opened, name, data, onClose }: Props) {
                 {t("share.qr")}
               </Text>
               <Box
+                className="panel-qr"
                 maw={280}
                 mx="auto"
                 bg="white"

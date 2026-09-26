@@ -35,7 +35,7 @@ i18n.on("languageChanged", (lng) => {
 export function errorText(err: unknown): string {
   if (err instanceof ApiError) {
     const key = `errors.${err.code}`;
-    return i18n.exists(key) ? i18n.t(key) : err.message;
+    return i18n.exists(key) ? i18n.t(key) : i18n.t("errors.generic", { status: err.status });
   }
   if (err instanceof NetworkError) return i18n.t("errors.network");
   return err instanceof Error ? err.message : String(err);

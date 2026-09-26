@@ -189,6 +189,11 @@
     "csrf": "Your session is outdated. Reload the page.",
     "validation_error": "Check the entered data",
     "network": "No connection to the panel",
-    "already_installed": "The protocol is already installed on the server"
+    "already_installed": "The protocol is already installed on the server",
+    "generic": "Something went wrong (HTTP {{status}})",
+    "conflict": "The data changed. Reload the page and try again.",
+    "bad_request": "Bad request",
+    "method_not_allowed": "Action not available",
+    "error": "Server error"
   }
 }

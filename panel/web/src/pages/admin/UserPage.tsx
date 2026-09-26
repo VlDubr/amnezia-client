@@ -1,5 +1,5 @@
 import { Anchor, Button, Card, Group, Modal, SimpleGrid, Stack, Text, Title } from "@mantine/core";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router";
 import { api } from "../../api/client";
@@ -27,8 +27,11 @@ export default function UserPage() {
   const refresh = [keys.user(id), ["admin", "users"], ["admin", "traffic"]];
 
   const [form, setForm] = useState<UserFieldValues | null>(null);
+  // Fill the form once per user: refetches after config actions must not discard unsaved edits.
+  const filledFor = useRef<number | null>(null);
   useEffect(() => {
-    if (user.data) {
+    if (user.data && filledFor.current !== id) {
+      filledFor.current = id;
       setForm({
         display_name: user.data.display_name,
         note: user.data.note,
@@ -36,7 +39,7 @@ export default function UserPage() {
         expires_on: user.data.expires_on ?? "",
       });
     }
-  }, [user.data]);
+  }, [user.data, id]);
   const [inviteKey, setInviteKey] = useState<string | null>(null);
   const [issuing, setIssuing] = useState(false);
 

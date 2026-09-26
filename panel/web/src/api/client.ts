@@ -60,8 +60,9 @@ export async function api<T = unknown>(path: string, { method = "GET", body }: O
     data = null;
   }
   if (!res.ok) {
-    if (res.status === 401) unauthorizedHandler?.();
     const err = (data ?? {}) as { code?: string; message?: string };
+    // 403 "forbidden" means the session now belongs to the other role (e.g. signed in as a user in another tab).
+    if (res.status === 401 || (res.status === 403 && err.code === "forbidden")) unauthorizedHandler?.();
     throw new ApiError(res.status, err.code ?? `http_${res.status}`, err.message ?? (text || res.statusText));
   }
   return data as T;

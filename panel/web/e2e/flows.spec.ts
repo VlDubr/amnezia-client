@@ -70,6 +70,12 @@ test("admin invites a user who manages configs and changes the password", async 
   const share = page.getByRole("dialog");
   await expect(share.getByLabel("Ключ для приложения AmneziaVPN")).toHaveValue(/^vpn:\/\//);
   await expect(share.locator("svg").first()).toBeVisible();
+  // On a phone the QR must stay inside the dialog so it can be scanned.
+  await page.setViewportSize({ width: 360, height: 740 });
+  const qr = await share.locator(".panel-qr svg").boundingBox();
+  const box = await share.locator(".panel-qr").boundingBox();
+  expect(qr && box && qr.x >= box.x && qr.x + qr.width <= box.x + box.width + 1).toBeTruthy();
+  await page.setViewportSize({ width: 1280, height: 720 });
   await page.keyboard.press("Escape");
   await expect(page.getByText("Конфигов: 1 из 3")).toBeVisible();
 
