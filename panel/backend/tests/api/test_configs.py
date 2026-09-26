@@ -210,3 +210,17 @@ async def test_service_export_has_qr_of_the_link(db, client, admin_token, app, f
     from app.render.qr import qr_svg
 
     assert export["qr_svg"] == qr_svg("tg://proxy?server=h&port=1&secret=ee00")  # QR of the link, not of ""
+
+
+async def test_full_server_gets_a_clear_error(db, client, admin_token, app, fake_remote, monkeypatch):
+    from app.drivers.base import get_driver
+
+    server, uid, token = await _setup(db, client, admin_token, app)
+
+    async def no_addresses(*a, **k):
+        raise RuntimeError("no free addresses left in 10.8.1.0/24")
+
+    monkeypatch.setattr(get_driver(AWG), "create_material", no_addresses)
+    r = await _create(client, token, server["id"])
+    assert r.status_code == 409 and r.json()["code"] == "server_full"
+    assert await _count(db, uid) == 0

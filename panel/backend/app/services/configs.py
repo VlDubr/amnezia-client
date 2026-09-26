@@ -114,6 +114,10 @@ async def create_config(db: AsyncSession, state: Any, user_id: int, server_id: i
                     RevokedClient.client_id == material.client_id))
                 # Commit while the server is still locked, so no sync sees the peer without its row.
                 await db.commit()
+    except RuntimeError as e:  # the driver ran out of resources, e.g. no free client address in the subnet
+        await db.rollback()
+        log.warning("config creation on server %s refused: %s", server_id, e)
+        raise ApiError(409, "server_full", "the server has no room for another config") from e
     except (RemoteError, TimeoutError, OSError, sqlalchemy.exc.TimeoutError) as e:
         await db.rollback()
         log.warning("config creation on server %s failed: %s", server_id, e)

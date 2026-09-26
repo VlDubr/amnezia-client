@@ -196,6 +196,7 @@
     "conflict": "The data changed. Reload the page and try again.",
     "bad_request": "Bad request",
     "method_not_allowed": "Action not available",
-    "error": "Server error"
+    "error": "Server error",
+    "server_full": "The server has no room for another config. Choose another server."
   }
 }
