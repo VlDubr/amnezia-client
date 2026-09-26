@@ -37,3 +37,29 @@ async def test_imported_xray_client_revoked_in_qt_stays_removed(db, clock):
 
 
 __all__ = ["SERVER_JSON"]
+
+
+async def test_broken_container_does_not_stop_the_others(db, clock):
+    from app.db.models import User
+    from app.services.materials import seal
+    from tests.fakes import AWG, awg_server, peers_on
+
+    remote = awg_server()
+    remote.containers.append(XRAY)
+    remote.files[(XRAY, CONF)] = "{not json"  # a broken or third-party Xray config
+    server = Server(name="s", host="h", ssh_port=22, ssh_user="r", ssh_secret_enc="x", imported_at=clock.now())
+    db.add(server)
+    await db.commit()
+    sid = server.id
+    await discover_containers(db, server, remote, clock)  # must not fail on Xray, and still records it
+    user = User(display_name="u", max_configs=3)
+    db.add(user)
+    await db.flush()
+    db.add(Config(user_id=user.id, server_id=sid, container=AWG, name="c", client_id="pubC=",
+                  material_enc=seal(BOX, {"private_key": "k", "public_key": "pubC=", "psk": "p", "ip": "10.8.1.3"})))
+    await db.commit()
+    await reconcile_server(db, sid, remote_factory_for(remote), clock, BOX)
+    assert "pubC=" in peers_on(remote)
+    db.expire_all()
+    s = await db.get(Server, sid)
+    assert s.last_error and XRAY in s.last_error

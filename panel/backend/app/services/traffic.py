@@ -11,6 +11,7 @@ from app.domain.clock import Clock
 from app.domain.rules import traffic_delta
 from app.drivers.base import get_driver, supported_containers
 from app.services.servers import RemoteFactory
+from app.ssh.conn import RemoteError
 
 
 async def collect_traffic(db: AsyncSession, server_id: int, remote_factory: RemoteFactory, clock: Clock,
@@ -25,7 +26,10 @@ async def collect_traffic(db: AsyncSession, server_id: int, remote_factory: Remo
     )).scalars().all()
     async with remote_factory(server) as remote:
         for container in containers:
-            counters = await get_driver(container).read_traffic(remote)
+            try:
+                counters = await get_driver(container).read_traffic(remote)
+            except (RemoteError, ValueError, KeyError):
+                continue  # one container's statistics failing must not stop the others
             configs = (await db.execute(select(Config).where(
                 Config.server_id == server_id, Config.container == container, Config.deleted_at.is_(None),
                 Config.client_id.in_(list(counters))))).scalars().all()

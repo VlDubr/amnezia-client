@@ -11,7 +11,7 @@ from app.db.models import Server, ServerContainer
 from app.domain.clock import Clock
 from app.drivers.base import get_driver, supported_containers
 from app.security.secretbox import SecretBox
-from app.ssh.conn import Remote, SshTarget, open_remote
+from app.ssh.conn import Remote, RemoteError, SshTarget, open_remote
 
 RemoteFactory = Callable[[Server], AbstractAsyncContextManager[Remote]]
 
@@ -42,7 +42,15 @@ async def discover_containers(db: AsyncSession, server: Server, remote: Remote, 
     existing = {sc.container: sc for sc in (await db.execute(
         select(ServerContainer).where(ServerContainer.server_id == server.id))).scalars()}
     for container in found:
-        params = await get_driver(container).read_params(remote)
+        try:
+            params = await get_driver(container).read_params(remote)
+        except (RemoteError, ValueError, KeyError):
+            # An unreadable container keeps its previous parameters; it is still recorded so that
+            # reconcile tries it and reports the error on the server.
+            if container not in existing:
+                db.add(ServerContainer(server_id=server.id, container=container, params_json={},
+                                       refreshed_at=clock.now()))
+            continue
         row = existing.get(container)
         if row is None:
             db.add(ServerContainer(server_id=server.id, container=container, params_json=params,

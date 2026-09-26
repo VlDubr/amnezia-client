@@ -11,6 +11,7 @@ from app.drivers.base import ClientMaterial, get_driver, supported_containers
 from app.security.secretbox import SecretBox
 from app.services.materials import has_private_part, seal, unseal
 from app.services.servers import RemoteFactory
+from app.ssh.conn import RemoteError
 
 
 def _user_state(user: User | None) -> UserState | None:
@@ -40,8 +41,7 @@ async def reconcile_server(db: AsyncSession, server_id: int, remote_factory: Rem
                                                 ServerContainer.container.in_(supported_containers()))
     )).scalars().all()
 
-    async with remote_factory(server) as remote:
-        for container in containers:
+    async def sync_container(remote, container: str) -> None:
             driver = get_driver(container)
             actual = await driver.list_clients(remote)
             revoked = set((await db.execute(select(RevokedClient.client_id).where(
@@ -61,7 +61,7 @@ async def reconcile_server(db: AsyncSession, server_id: int, remote_factory: Rem
                     known[client_id] = (cfg, None)
             await db.flush()
             if first_import:
-                continue
+                return
 
             desired: list[ClientMaterial] = []
             for client_id, (cfg, user) in known.items():
@@ -88,6 +88,15 @@ async def reconcile_server(db: AsyncSession, server_id: int, remote_factory: Rem
             for cfg in gone:
                 await db.delete(cfg)
 
+    errors: list[str] = []
+    async with remote_factory(server) as remote:
+        for container in containers:
+            try:
+                await sync_container(remote, container)
+            except (RemoteError, ValueError, KeyError) as e:
+                # One broken container (odd config, failed command) must not stop the others.
+                errors.append(f"{container}: {e}")
+
     if not first_import:
         # Deleted configs of containers that are not running have nothing to remove now; the revocation
         # record makes sure they are removed if the container comes back.
@@ -102,5 +111,5 @@ async def reconcile_server(db: AsyncSession, server_id: int, remote_factory: Rem
                                         ~exists().where(Config.user_id == User.id)))
     server.imported_at = server.imported_at or now
     server.last_ok_at = now
-    server.last_error = None
+    server.last_error = "; ".join(errors)[:2000] or None
     await db.commit()
