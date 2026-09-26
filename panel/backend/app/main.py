@@ -3,13 +3,17 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.api import audit, auth, jobs, me
+from app.api import admin_servers, audit, auth, jobs, me
 from app.config import Settings, get_settings
 from app.db.base import make_engine, make_sessionmaker
 from app.domain.clock import Clock, SystemClock
 from app.errors import install_error_handlers
+from app.jobs.handlers import build_handlers
+from app.jobs.worker import Worker
 from app.security.ratelimit import RateLimiter
 from app.security.secretbox import SecretBox
+from app.services.servers import make_remote_factory
+from app.ssh.conn import fetch_host_key
 
 
 def create_app(settings: Settings | None = None,
@@ -32,6 +36,9 @@ def create_app(settings: Settings | None = None,
     app.state.sessionmaker = sessionmaker
     app.state.clock = clock
     app.state.secretbox = SecretBox(settings.master_key)
+    app.state.remote_factory = make_remote_factory(app.state.secretbox)
+    app.state.fetch_host_key = fetch_host_key
+    app.state.worker = Worker(sessionmaker, build_handlers(app.state), clock)
     app.state.limiters = {
         "login_name": RateLimiter(5, 60, clock),
         "login_ip": RateLimiter(20, 60, clock),
@@ -47,4 +54,5 @@ def create_app(settings: Settings | None = None,
     app.include_router(me.router)
     app.include_router(audit.router)
     app.include_router(jobs.router)
+    app.include_router(admin_servers.router)
     return app

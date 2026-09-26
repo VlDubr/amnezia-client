@@ -125,3 +125,37 @@ async def registered_user(db, client, login_="ivan", **kw) -> tuple[User, str]:
     assert r.status_code == 200, r.text
     client.cookies.clear()
     return user, r.json()["token"]
+
+
+# --- fake servers ---------------------------------------------------------
+
+
+@pytest.fixture
+def fake_remote(app):
+    """Every server the app talks to is this in-memory AWG server."""
+    from tests.fakes import awg_server, remote_factory_for
+
+    remote = awg_server()
+    app.state.remote_factory = remote_factory_for(remote)
+
+    async def fetch_host_key(host, port):
+        remote._check()
+        return "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestHostKey"
+
+    app.state.fetch_host_key = fetch_host_key
+    return remote
+
+
+async def run_jobs(app) -> int:
+    n = 0
+    while await app.state.worker.run_once():
+        n += 1
+    return n
+
+
+async def add_server(client, admin_token, app, **overrides) -> dict:
+    body = {"name": "nl-1", "host": "203.0.113.10", "ssh_user": "root", "ssh_password": "secret", **overrides}
+    r = await client.post("/api/admin/servers", json=body, headers=bearer(admin_token))
+    assert r.status_code == 202, r.text
+    await run_jobs(app)
+    return r.json()["server"]
