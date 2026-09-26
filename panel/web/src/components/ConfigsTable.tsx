@@ -1,4 +1,5 @@
 import { Button, Group, ScrollArea, Table, Text } from "@mantine/core";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Config } from "../api/types";
 import { formatBytes } from "../lib/format";
@@ -14,9 +15,12 @@ type Props = {
   canUnblock: (c: Config) => boolean;
   showDisabled?: boolean;
   showOwner?: boolean;
+  extraActions?: (c: Config) => ReactNode;
 };
 
-export function ConfigsTable({ configs, onShow, onBlock, onUnblock, onDelete, canUnblock, showDisabled, showOwner }: Props) {
+export function ConfigsTable({
+  configs, onShow, onBlock, onUnblock, onDelete, canUnblock, showDisabled, showOwner, extraActions,
+}: Props) {
   const { t } = useTranslation();
   if (configs.length === 0) return <Text c="dimmed">{t("dashboard.no_configs")}</Text>;
   return (
@@ -72,6 +76,7 @@ export function ConfigsTable({ configs, onShow, onBlock, onUnblock, onDelete, ca
                   <Button size="compact-xs" variant="light" color="red" onClick={() => onDelete(c)}>
                     {t("common.delete")}
                   </Button>
+                  {extraActions?.(c)}
                 </Group>
               </Table.Td>
             </Table.Tr>
