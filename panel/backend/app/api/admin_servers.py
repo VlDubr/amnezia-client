@@ -12,7 +12,7 @@ from app.db.models import Config, Server, ServerContainer
 from app.drivers.base import get_driver
 from app.errors import ApiError
 from app.jobs.queue import enqueue
-from app.services.install import INSTALLABLE
+from app.drivers.base import installable_containers
 from app.services.servers import seal_ssh_secret
 from app.services.sync import enqueue_server_sync
 from app.ssh.conn import RemoteError
@@ -157,8 +157,8 @@ async def accept_host_key(server_id: int, request: Request, admin: AdminDep, db:
 @router.post("/{server_id}/containers", status_code=202)
 async def install(server_id: int, body: ContainerIn, admin: AdminDep, db: Db):
     await _get(db, server_id)
-    if body.container not in INSTALLABLE:
-        raise ApiError(422, "unsupported_container", f"supported: {', '.join(sorted(INSTALLABLE))}")
+    if body.container not in installable_containers():
+        raise ApiError(422, "unsupported_container", f"supported: {', '.join(sorted(installable_containers()))}")
     if not body.force and await db.get(ServerContainer, (server_id, body.container)) is not None:
         raise ApiError(409, "already_installed", "the protocol is already installed; reinstalling breaks its configs")
     payload = {"container": body.container, "port": body.port} if body.port else {"container": body.container}

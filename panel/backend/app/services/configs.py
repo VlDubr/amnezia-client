@@ -100,7 +100,8 @@ async def create_config(db: AsyncSession, state: Any, user_id: int, server_id: i
                         await driver.apply(remote, [*desired, material], known | {material.client_id})
                     except Exception:
                         with contextlib.suppress(Exception):
-                            await driver.apply(remote, desired, known | {material.client_id})
+                            await driver.apply(remote, desired, known | {material.client_id},
+                                               revoked={material.client_id})
                         raise
                 deadline.reschedule(None)
                 sc.params_json = params

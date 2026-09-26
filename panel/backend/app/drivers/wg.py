@@ -6,6 +6,7 @@ Mirrors WireguardConfigurator / AwgInstaller / UsersController in the Qt client.
 import base64
 import ipaddress
 import json
+import random
 import re
 from typing import Any
 
@@ -60,9 +61,14 @@ def _safe_filename(name: str) -> str:
     return re.sub(r"[^\w.-]+", "_", name, flags=re.UNICODE).strip("_") or "amnezia"
 
 
+SUBNET = "10.8.1.0"
+SUBNET_CIDR = "24"
+SPECIAL_JUNK_1 = "<r 2><b 0x858000010001000000000669636c6f756403636f6d0000010001c00c000100010000105a00044d583737>"
+
+
 class WgFamilyDriver:
     def __init__(self, container: str, title: str, bin_: str, iface: str, data_dir: str, conf_name: str,
-                 script_folder: str, proto_key: str, is_awg: bool):
+                 script_folder: str, proto_key: str, is_awg: bool, default_port: str, installable: bool):
         self.container = container
         self.title = title
         self.bin = bin_
@@ -72,6 +78,29 @@ class WgFamilyDriver:
         self.script_folder = script_folder
         self.proto_key = proto_key
         self.is_awg = is_awg
+        self.default_port = default_port
+        self.installable = installable
+
+    def install_vars(self, port: str | None) -> dict[str, str]:
+        """As AwgInstaller::generateAwgParameters / WireguardInstaller in the Qt client."""
+        port = port or self.default_port
+        if not self.is_awg:
+            return {"WIREGUARD_SUBNET_IP": SUBNET, "WIREGUARD_SUBNET_CIDR": SUBNET_CIDR, "WIREGUARD_SERVER_PORT": port}
+        header_key, _ = generate_keypair()
+        return {
+            "AWG_SUBNET_IP": SUBNET, "WIREGUARD_SUBNET_CIDR": SUBNET_CIDR, "AWG_SERVER_PORT": port,
+            "JUNK_PACKET_COUNT": str(random.randint(4, 6)), "JUNK_PACKET_MIN_SIZE": "10", "JUNK_PACKET_MAX_SIZE": "50",
+            "INIT_PACKET_JUNK_SIZE": "12", "RESPONSE_PACKET_JUNK_SIZE": "12", "COOKIE_REPLY_PACKET_JUNK_SIZE": "12",
+            "TRANSPORT_PACKET_JUNK_SIZE": "12",
+            "INIT_PACKET_MAGIC_HEADER": "1", "RESPONSE_PACKET_MAGIC_HEADER": "2", "UNDERLOAD_PACKET_MAGIC_HEADER": "3",
+            "TRANSPORT_PACKET_MAGIC_HEADER": "4",
+            "SPECIAL_JUNK_1": SPECIAL_JUNK_1, "SPECIAL_JUNK_2": "", "SPECIAL_JUNK_3": "", "SPECIAL_JUNK_4": "",
+            "SPECIAL_JUNK_5": "",
+            "HEADER_PROTECTION_KEY": header_key, "CONTENT_PADDING_ADDITION": "",
+            "REKEY_AFTER_TIME": "100-120", "REKEY_TIMEOUT": "3-7", "REJECT_AFTER_TIME": "150-180",
+            "KEEPALIVE_TIMEOUT": "5-15", "MAX_HANDSHAKE_ATTEMPTS": "15-20",
+            "RANDOM_TRAILERS": "on", "DISABLE_COOKIES": "on", "PERSISTENT_KEEPALIVE": "25-35",
+        }
 
     # --- server state -----------------------------------------------------
 
@@ -134,7 +163,9 @@ class WgFamilyDriver:
     def reserved(self, material: ClientMaterial) -> str | None:
         return material.data.get("ip")
 
-    async def apply(self, remote: Remote, desired: list[ClientMaterial], known_ids: set[str]) -> ApplyResult:
+    async def apply(self, remote: Remote, desired: list[ClientMaterial], known_ids: set[str],
+                    revoked: frozenset[str] | set[str] = frozenset()) -> ApplyResult:
+        # Removing a peer is reversible and final at the same time for WireGuard: revoked needs nothing extra.
         conf = await self._read_conf(remote)
         wanted = {m.client_id: m for m in desired}
         result = ApplyResult()
@@ -230,8 +261,8 @@ class WgFamilyDriver:
 
 
 register(WgFamilyDriver("amnezia-awg2", "AmneziaWG", "awg", "awg0", "/opt/amnezia/awg", "awg0.conf", "awg", "awg",
-                        True))
+                        True, "55424", installable=True))
 register(WgFamilyDriver("amnezia-awg", "AmneziaWG (legacy)", "wg", "wg0", "/opt/amnezia/awg", "wg0.conf",
-                        "awg_legacy", "awg", True))
+                        "awg_legacy", "awg", True, "55424", installable=False))
 register(WgFamilyDriver("amnezia-wireguard", "WireGuard", "wg", "wg0", "/opt/amnezia/wireguard", "wg0.conf",
-                        "wireguard", "wireguard", False))
+                        "wireguard", "wireguard", False, "51820", installable=True))

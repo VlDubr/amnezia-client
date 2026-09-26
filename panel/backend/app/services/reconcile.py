@@ -73,7 +73,8 @@ async def reconcile_server(db: AsyncSession, server_id: int, remote_factory: Rem
                     cfg.deleted_at = now
                 if is_config_active(cfg.blocked_by, cfg.deleted_at, _user_state(user), now):
                     desired.append(ClientMaterial(client_id, material))
-            result = await driver.apply(remote, desired, set(known) | revoked)
+            gone_ids = {cid for cid, (cfg, _) in known.items() if cfg.deleted_at is not None} | revoked
+            result = await driver.apply(remote, desired, set(known) | revoked, gone_ids)
 
             desired_ids = {m.client_id for m in desired}
             for client_id, (cfg, _) in known.items():

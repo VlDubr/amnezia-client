@@ -44,6 +44,8 @@ class Rendered:
 class Driver(Protocol):
     container: str
     title: str
+    installable: bool  # the panel can install this container with client/server_scripts
+    script_folder: str
 
     async def read_params(self, remote: Remote) -> dict[str, Any]: ...
 
@@ -53,11 +55,17 @@ class Driver(Protocol):
         """`taken` holds resources reserved by configs the panel knows (for WireGuard: client IPs)."""
         ...
 
-    async def apply(self, remote: Remote, desired: list[ClientMaterial], known_ids: set[str]) -> ApplyResult:
+    async def apply(self, remote: Remote, desired: list[ClientMaterial], known_ids: set[str],
+                    revoked: frozenset[str] | set[str] = frozenset()) -> ApplyResult:
         """Makes the server client set equal to desired + (clients unknown to the panel).
 
         Clients whose id is in known_ids but not in desired are removed; unknown clients are never touched.
+        `revoked` (a subset of known_ids) are removed for good; the others may be removed reversibly (blocked).
         """
+        ...
+
+    def install_vars(self, port: str | None) -> dict[str, str]:
+        """Protocol variables for a fresh install with the Qt client's scripts."""
         ...
 
     async def read_traffic(self, remote: Remote) -> dict[str, Counter]: ...
@@ -71,6 +79,7 @@ class Driver(Protocol):
 
 
 _REGISTRY: dict[str, Driver] = {}
+_MODULES = ("wg",)
 
 
 def register(driver: Driver) -> Driver:
@@ -78,9 +87,15 @@ def register(driver: Driver) -> Driver:
     return driver
 
 
-def get_driver(container: str) -> Driver:
-    from app.drivers import wg  # noqa: F401  (registers the WireGuard family)
+def _load() -> None:
+    import importlib
 
+    for name in _MODULES:
+        importlib.import_module(f"app.drivers.{name}")
+
+
+def get_driver(container: str) -> Driver:
+    _load()
     try:
         return _REGISTRY[container]
     except KeyError:
@@ -88,6 +103,10 @@ def get_driver(container: str) -> Driver:
 
 
 def supported_containers() -> set[str]:
-    from app.drivers import wg  # noqa: F401
-
+    _load()
     return set(_REGISTRY)
+
+
+def installable_containers() -> set[str]:
+    _load()
+    return {name for name, driver in _REGISTRY.items() if driver.installable}

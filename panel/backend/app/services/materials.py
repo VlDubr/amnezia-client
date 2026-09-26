@@ -15,5 +15,6 @@ def unseal(box: SecretBox, token: str | None) -> dict[str, Any]:
 
 
 def has_private_part(data: dict[str, Any]) -> bool:
-    """Imported configs only carry public data (ip, psk); they can be kept on the server but not re-issued."""
-    return bool(data.get("private_key"))
+    """Whether the config can be issued again: WireGuard/OpenVPN need the client's private key, which imported
+    configs lack; Xray, SOCKS5 and Telegram proxies only need a secret the server itself holds."""
+    return bool(data.get("private_key") or data.get("secret"))
