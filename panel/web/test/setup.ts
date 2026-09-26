@@ -24,6 +24,11 @@ class ResizeObserverStub {
 }
 window.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
 window.HTMLElement.prototype.scrollIntoView = () => {};
+// Mantine's autosize Textarea listens for web font loading.
+Object.defineProperty(document, "fonts", {
+  configurable: true,
+  value: { addEventListener: () => {}, removeEventListener: () => {}, ready: Promise.resolve() },
+});
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
