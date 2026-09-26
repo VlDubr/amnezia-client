@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.api import audit, auth, me
+from app.api import audit, auth, jobs, me
 from app.config import Settings, get_settings
 from app.db.base import make_engine, make_sessionmaker
 from app.domain.clock import Clock, SystemClock
@@ -46,4 +46,5 @@ def create_app(settings: Settings | None = None,
     app.include_router(auth.router)
     app.include_router(me.router)
     app.include_router(audit.router)
+    app.include_router(jobs.router)
     return app
