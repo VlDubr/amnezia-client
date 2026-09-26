@@ -1,4 +1,5 @@
 #include "coreController.h"
+#include "amneziaApplication.h"
 
 #include <QDirIterator>
 #include <QTranslator>
@@ -227,6 +228,10 @@ void CoreController::initControllers()
 
     m_servicesCatalogUiController = new ServicesCatalogUiController(m_servicesCatalogController, m_apiServicesModel, this);
     setQmlContextProperty("ServicesCatalogUiController", m_servicesCatalogUiController);
+
+    m_panelApiClient = new PanelApiClient(m_appSettingsRepository, amnApp->networkManager(), this);
+    m_panelUiController = new PanelUiController(m_panelApiClient, this);
+    setQmlContextProperty("PanelController", m_panelUiController);
 
     m_subscriptionUiController = new SubscriptionUiController(m_serversController, m_apiServicesModel, m_servicesCatalogController, m_subscriptionController,
                                                               m_storePurchaseController,

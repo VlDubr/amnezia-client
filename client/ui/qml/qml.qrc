@@ -107,6 +107,9 @@
         <file>Pages2/PageServiceTorWebsiteSettings.qml</file>
         <file>Pages2/PageSettings.qml</file>
         <file>Pages2/PageSettingsAbout.qml</file>
+        <file>Pages2/PagePanelLogin.qml</file>
+        <file>Pages2/PagePanelUsers.qml</file>
+        <file>Pages2/PagePanelUser.qml</file>
         <file>Pages2/PageSettingsApiAvailableCountries.qml</file>
         <file>Pages2/PageSettingsApiServerInfo.qml</file>
         <file>Pages2/PageSettingsApplication.qml</file>

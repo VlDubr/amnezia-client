@@ -21,6 +21,7 @@ set(HEADERS ${HEADERS}
     ${CLIENT_ROOT_DIR}/core/controllers/coreController.h
     ${CLIENT_ROOT_DIR}/core/controllers/coreSignalHandlers.h
     ${CLIENT_ROOT_DIR}/core/controllers/gatewayController.h
+    ${CLIENT_ROOT_DIR}/core/controllers/panel/panelApiClient.h
     ${CLIENT_ROOT_DIR}/core/utils/selfhosted/sshSession.h
     ${CLIENT_ROOT_DIR}/core/controllers/serversController.h
     ${CLIENT_ROOT_DIR}/core/controllers/selfhosted/usersController.h
@@ -106,6 +107,7 @@ set(SOURCES ${SOURCES}
     ${CLIENT_ROOT_DIR}/core/controllers/coreController.cpp
     ${CLIENT_ROOT_DIR}/core/controllers/coreSignalHandlers.cpp
     ${CLIENT_ROOT_DIR}/core/controllers/gatewayController.cpp
+    ${CLIENT_ROOT_DIR}/core/controllers/panel/panelApiClient.cpp
     ${CLIENT_ROOT_DIR}/core/utils/selfhosted/sshSession.cpp
     ${CLIENT_ROOT_DIR}/core/controllers/serversController.cpp
     ${CLIENT_ROOT_DIR}/core/controllers/selfhosted/usersController.cpp
@@ -235,12 +237,14 @@ file(GLOB UI_CONTROLLERS_H CONFIGURE_DEPENDS
     ${CLIENT_ROOT_DIR}/ui/controllers/api/*.h
     ${CLIENT_ROOT_DIR}/ui/controllers/qml/*.h
     ${CLIENT_ROOT_DIR}/ui/controllers/selfhosted/*.h
+    ${CLIENT_ROOT_DIR}/ui/controllers/panel/*.h
 )
 file(GLOB UI_CONTROLLERS_CPP CONFIGURE_DEPENDS
     ${CLIENT_ROOT_DIR}/ui/controllers/*.cpp
     ${CLIENT_ROOT_DIR}/ui/controllers/api/*.cpp
     ${CLIENT_ROOT_DIR}/ui/controllers/qml/*.cpp
     ${CLIENT_ROOT_DIR}/ui/controllers/selfhosted/*.cpp
+    ${CLIENT_ROOT_DIR}/ui/controllers/panel/*.cpp
 )
 
 set(HEADERS ${HEADERS}

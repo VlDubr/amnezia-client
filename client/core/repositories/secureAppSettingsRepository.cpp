@@ -284,6 +284,26 @@ void SecureAppSettingsRepository::setGatewayEndpoint(const QString &endpoint)
     setValue("Conf/gatewayEndpoint", endpoint);
 }
 
+QString SecureAppSettingsRepository::panelUrl() const
+{
+    return value("Conf/panelUrl").toString();
+}
+
+void SecureAppSettingsRepository::setPanelUrl(const QString &url)
+{
+    setValue("Conf/panelUrl", url);
+}
+
+QString SecureAppSettingsRepository::panelToken() const
+{
+    return value("Conf/panelToken").toString();
+}
+
+void SecureAppSettingsRepository::setPanelToken(const QString &token)
+{
+    setValue("Conf/panelToken", token);
+}
+
 void SecureAppSettingsRepository::resetGatewayEndpoint()
 {
     m_gatewayEndpoint = gatewayEndpoint;

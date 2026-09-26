@@ -80,6 +80,10 @@ namespace PageLoader
 
         PageDevMenu,
 
+        PagePanelLogin,
+        PagePanelUsers,
+        PagePanelUser,
+
         PageProtocolXraySnapshots,
         PageProtocolXrayTransportSettings,
         PageProtocolXrayXmuxSettings,

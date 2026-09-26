@@ -107,6 +107,7 @@ PageType {
         application,
         news,
         backup,
+        panel,
         about,
         devConsole
     ]
@@ -168,6 +169,17 @@ PageType {
         property bool isVisible: true
         readonly property var clickedHandler: function() {
             PageController.goToPage(PageEnum.PageSettingsBackup)
+        }
+    }
+
+    QtObject {
+        id: panel
+
+        property string title: qsTr("Amnezia Panel")
+        readonly property string leftImagePath: "qrc:/images/controls/server.svg"
+        property bool isVisible: true
+        readonly property var clickedHandler: function() {
+            PageController.goToPage(PanelController.isSignedIn ? PageEnum.PagePanelUsers : PageEnum.PagePanelLogin)
         }
     }
 

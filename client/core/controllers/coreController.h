@@ -28,6 +28,7 @@
 #include "ui/controllers/languageUiController.h"
 #include "ui/controllers/updateUiController.h"
 #include "ui/controllers/api/servicesCatalogUiController.h"
+#include "ui/controllers/panel/panelUiController.h"
 #include "ui/controllers/networkReachabilityController.h"
 
 #include "core/controllers/serversController.h"
@@ -183,6 +184,8 @@ private:
     ApiNewsUiController* m_apiNewsUiController;
     
     ServicesCatalogUiController* m_servicesCatalogUiController;
+    PanelApiClient* m_panelApiClient;
+    PanelUiController* m_panelUiController;
 
     ServersController* m_serversController;
     UsersController* m_usersController;

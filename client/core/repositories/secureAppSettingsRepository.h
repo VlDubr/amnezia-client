@@ -59,6 +59,12 @@ public:
 
     QString getGatewayEndpoint(bool isTestPurchase = false) const;
     void setGatewayEndpoint(const QString &endpoint);
+
+    // Amnezia Panel administration: panel address and the admin session token
+    QString panelUrl() const;
+    void setPanelUrl(const QString &url);
+    QString panelToken() const;
+    void setPanelToken(const QString &token);
     void resetGatewayEndpoint();
     void setDevGatewayEndpoint();
     bool isDevGatewayEnv(bool isTestPurchase = false) const;
