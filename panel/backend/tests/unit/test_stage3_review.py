@@ -137,3 +137,26 @@ async def test_xray_tls_client_config_does_not_carry_server_certificates():
     out = d.render(ClientMaterial(UUID_A, {"secret": UUID_A}), await d.read_params(r), "h", ("", ""), "x")
     text = decode_vpn_key(out.vpn_key)["containers"][0]["xray"]["last_config"]
     assert "SECRET-KEY" not in text and "certificates" not in text and "vpn.example.com" in text
+
+
+async def test_socks5_traffic_reads_only_new_log_lines():
+    import json as _json
+
+    from app.drivers.base import get_driver
+    from tests.unit.test_socks5_driver import LOG, S5, remote as s5_remote
+
+    line = '{"auth":{"user":"u1"}, "bytes":{"sent":10, "received":100}}\n'
+    r = s5_remote()
+    r.outputs["wc -c"] = str(len(line))
+    r.outputs["tail -c"] = line
+    first = (await get_driver(S5).read_traffic(r))["u1"]
+    assert (first.rx, first.tx) == (10, 100)
+    state = _json.loads(r.files[(S5, LOG + ".panel-state")])
+    assert state["offset"] == len(line)
+    tails = [c for w, c in r.commands if "tail -c" in c]
+    assert tails and f"tail -c +1 {LOG}" in tails[-1]
+
+    r.outputs["wc -c"] = str(2 * len(line))  # one more line appended
+    second = (await get_driver(S5).read_traffic(r))["u1"]
+    assert (second.rx, second.tx) == (20, 200)  # cumulative, only the new line was added
+    assert f"tail -c +{len(line) + 1} {LOG}" in [c for w, c in r.commands if "tail -c" in c][-1]

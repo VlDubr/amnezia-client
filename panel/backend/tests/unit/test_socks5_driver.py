@@ -68,7 +68,9 @@ async def test_traffic_from_json_log():
         '{"time_unix":2, "auth":{"user":"u1"}, "bytes":{"sent":500, "received":25}}',
         '{"time_unix":3, "auth":{"user":"-"}, "bytes":{"sent":9, "received":9}}',
     ]
-    r.files[(S5, LOG)] = "\n".join(lines)
+    text = "\n".join(lines) + "\n"
+    r.outputs["wc -c"] = str(len(text.encode()))
+    r.outputs["tail -c"] = text
     t = await get_driver(S5).read_traffic(r)
     assert (t["u1"].rx, t["u1"].tx) == (1500, 75) and "-" not in t
 

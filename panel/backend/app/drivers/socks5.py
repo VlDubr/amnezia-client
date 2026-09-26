@@ -7,10 +7,11 @@ import urllib.parse
 from typing import Any
 
 from app.drivers.base import ApplyResult, ClientInfo, ClientMaterial, Counter, Rendered, register
-from app.ssh.conn import Remote
+from app.ssh.conn import Remote, RemoteError
 
 CONFIG = "/usr/local/3proxy/conf/3proxy.cfg"
 LOG = "/usr/local/3proxy/logs/3proxy.log"
+NL = chr(10)
 
 
 def _users(cfg: str) -> dict[str, str]:
@@ -49,6 +50,21 @@ def _rewrite(cfg: str, users: dict[str, str]) -> str:
     at = next((i for i, line in enumerate(kept) if line.split()[:1] in (["log"], ["auth"], ["socks"])), len(kept))
     kept[at:at] = [f"users {e}" for e in others] + [f"users {login}:CL:{password}" for login, password in users.items()]
     return "\n".join(kept) + "\n"
+
+
+def _parse_log_line(line: str) -> tuple[str, int, int] | None:
+    start = line.find("{")
+    if start < 0:
+        return None
+    try:
+        entry = json.loads(line[start:])
+        user = entry["auth"]["user"]
+        sent, received = int(entry["bytes"]["sent"]), int(entry["bytes"]["received"])
+    except (ValueError, KeyError, TypeError):
+        return None
+    if not user or user == "-":
+        return None
+    return user, sent, received
 
 
 class Socks5Driver:
@@ -110,26 +126,38 @@ class Socks5Driver:
         return result
 
     async def read_traffic(self, remote: Remote) -> dict[str, Counter]:
-        out = await remote.container_exec(self.container, f"cat {LOG} 2>/dev/null || true", shell=self.shell)
-        counters: dict[str, Counter] = {}
-        for line in out.splitlines():
-            start = line.find("{")
-            if start < 0:
-                continue
-            try:
-                entry = json.loads(line[start:])
-                user = entry["auth"]["user"]
-                sent, received = int(entry["bytes"]["sent"]), int(entry["bytes"]["received"])
-            except (ValueError, KeyError, TypeError):
-                continue
-            if not user or user == "-":
-                continue
-            c = counters.setdefault(user, Counter(0, 0, None))
-            # 3proxy counts from the target's side: "sent" went out to the target (the client's upload),
-            # "received" came back from it (the client's download).
-            c.rx += sent
-            c.tx += received
-        return counters
+        """Per-user totals from the 3proxy JSON log. Only bytes appended since the last read are parsed; the
+        offset and running totals live next to the log, so a long-lived log is never re-read."""
+        state_path = f"{LOG}.panel-state"
+        try:
+            state = json.loads(await remote.read_container_file(self.container, state_path))
+        except (RemoteError, ValueError):
+            state = {"offset": 0, "totals": {}}
+        size_out = await remote.container_exec(self.container, f"wc -c < {LOG} 2>/dev/null || echo 0",
+                                               shell=self.shell)
+        size = int(size_out.strip() or 0) if size_out.strip().isdigit() else 0
+        offset = int(state.get("offset", 0))
+        if size < offset:
+            offset = 0  # the log was truncated or replaced
+        totals: dict[str, list[int]] = state.get("totals", {})
+        if size > offset:
+            chunk = await remote.container_exec(
+                self.container, f"tail -c +{offset + 1} {LOG} 2>/dev/null | head -c {size - offset}",
+                shell=self.shell)
+            complete, _, _ = chunk.rpartition(NL)  # a half-written last line is read next time
+            for line in complete.splitlines():
+                parsed = _parse_log_line(line)
+                if parsed:
+                    user, sent, received = parsed
+                    t = totals.setdefault(user, [0, 0])
+                    # 3proxy counts from the target's side: "sent" went out to the target (the client's upload),
+                    # "received" came back from it (the client's download).
+                    t[0] += sent
+                    t[1] += received
+            offset += len((complete + NL).encode()) if complete else 0
+            await remote.write_container_file(self.container, state_path,
+                                              json.dumps({"offset": offset, "totals": totals}))
+        return {user: Counter(t[0], t[1], None) for user, t in totals.items()}
 
     def render(self, material: ClientMaterial, params: dict[str, Any], host: str, dns: tuple[str, str],
                description: str) -> Rendered:
