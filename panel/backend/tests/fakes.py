@@ -13,6 +13,7 @@ class FakeRemote:
         self.commands: list[tuple[str, str]] = []
         self.containers = containers or []
         self.dumps: dict[str, str] = {}  # container -> `wg show <iface> dump` output
+        self.outputs: dict[str, str] = {}  # command substring -> stdout for container_exec
         self.fail_with: str | None = None
         self.fail_on: str | None = None  # fail container commands that contain this text
 
@@ -47,6 +48,9 @@ class FakeRemote:
         m = re.match(r"cat (\S+) 2>/dev/null \|\| true", script.strip())
         if m:
             return self.files.get((container, m.group(1)), "")
+        for needle, out in self.outputs.items():
+            if needle in script:
+                return out
         return ""
 
     async def list_containers(self) -> list[str]:
