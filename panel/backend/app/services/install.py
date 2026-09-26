@@ -19,8 +19,8 @@ def base_vars(container: str, host: str, dns: tuple[str, str]) -> dict[str, str]
 
 
 async def install_container(remote: Remote, container: str, host: str, dns: tuple[str, str],
-                            port: str | None = None, host_setup: bool = True) -> None:
-    if container not in installable_containers():
+                            port: str | None = None, host_setup: bool = True, only_installable: bool = True) -> None:
+    if only_installable and container not in installable_containers():
         raise ValueError(f"cannot install {container}")
     driver = get_driver(container)
     folder = driver.script_folder

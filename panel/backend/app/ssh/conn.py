@@ -2,6 +2,7 @@
 
 import asyncio
 import shlex
+import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -61,7 +62,13 @@ class Remote:
         return result
 
     async def container_exec(self, container: str, script: str, shell: str = "bash", check: bool = True) -> str:
-        cmd = f"sudo docker exec -i {shlex.quote(container)} {shell} -s"
+        """Runs a script inside the container. Like the Qt client's runContainerScript, the script is uploaded to
+        a file first: fed through stdin, commands that read stdin (certutil prompts) would swallow its rest."""
+        c = shlex.quote(container)
+        path = f"/tmp/panel-{uuid.uuid4().hex}.sh"
+        cmd = (f"sudo docker exec -i {c} sh -c {shlex.quote(f'cat > {path}')} && "
+               f"sudo docker exec {c} {shell} {path} < /dev/null; rc=$?; "
+               f"sudo docker exec {c} rm -f {path}; exit $rc")
         return (await self.run(cmd, input=script, check=check)).stdout
 
     async def read_container_file(self, container: str, path: str) -> str:

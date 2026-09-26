@@ -37,3 +37,19 @@ async def test_container_files_and_exec(sshhost, scratch_container):
         assert await remote.read_container_file(scratch_container, "/opt/amnezia/test/a.conf") == "line1\n$VAR 'q'\n"
         out = await remote.container_exec(scratch_container, "cat /opt/amnezia/test/a.conf | wc -l", shell="sh")
         assert out.strip() == "2"
+
+
+async def test_container_scripts_that_read_stdin_do_not_eat_the_script(sshhost):
+    # certutil and other tools prompt on stdin; with `bash -s` they would swallow the rest of the script.
+    import uuid
+
+    from tests.integration.conftest import SSHHOST_IMAGE, docker
+
+    name = f"panel-bash-{uuid.uuid4().hex[:6]}"
+    docker("run", "-d", "--rm", "--name", name, "--entrypoint", "sleep", SSHHOST_IMAGE, "600")
+    try:
+        async with open_remote(sshhost) as remote:
+            out = await remote.container_exec(name, "read line || true\necho second-line-ran\n")
+            assert "second-line-ran" in out
+    finally:
+        docker("rm", "-f", name, check=False)
