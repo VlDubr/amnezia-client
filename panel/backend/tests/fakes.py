@@ -49,3 +49,52 @@ class FakeRemote:
     async def list_containers(self) -> list[str]:
         self._check()
         return list(self.containers)
+
+
+AWG = "amnezia-awg2"
+AWG_CONF = "/opt/amnezia/awg/awg0.conf"
+AWG_SERVER_CONF = """[Interface]
+PrivateKey = c2VydmVycHJpdg==
+Address = 10.8.1.0/24
+ListenPort = 55424
+Jc = 5
+H1 = 1
+
+[Peer]
+PublicKey = pubA=
+PresharedKey = srvpsk=
+AllowedIPs = 10.8.1.1/32
+
+[Peer]
+PublicKey = pubB=
+PresharedKey = srvpsk=
+AllowedIPs = 10.8.1.2/32
+"""
+
+
+def awg_server() -> FakeRemote:
+    """A server with an AWG container holding two peers created outside the panel."""
+    r = FakeRemote([AWG, "amnezia-dns"])
+    r.files[(AWG, AWG_CONF)] = AWG_SERVER_CONF
+    r.files[(AWG, "/opt/amnezia/awg/wireguard_server_public_key.key")] = "srvpub=\n"
+    r.files[(AWG, "/opt/amnezia/awg/wireguard_psk.key")] = "srvpsk=\n"
+    r.files[(AWG, "/opt/amnezia/awg/clientsTable")] = (
+        '[{"clientId": "pubA=", "userData": {"clientName": "Old phone"}}]')
+    return r
+
+
+def peers_on(remote: FakeRemote, container: str = AWG, path: str = AWG_CONF) -> set[str]:
+    from app.drivers.wgconf import parse
+
+    return {p.public_key for p in parse(remote.files[(container, path)]).peers}
+
+
+def remote_factory_for(remote: FakeRemote):
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def factory(server):
+        remote._check()
+        yield remote
+
+    return factory
