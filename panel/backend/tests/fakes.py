@@ -14,6 +14,7 @@ class FakeRemote:
         self.containers = containers or []
         self.dumps: dict[str, str] = {}  # container -> `wg show <iface> dump` output
         self.fail_with: str | None = None
+        self.fail_on: str | None = None  # fail container commands that contain this text
 
     def _check(self):
         if self.fail_with:
@@ -39,6 +40,8 @@ class FakeRemote:
     async def container_exec(self, container: str, script: str, shell: str = "bash", check: bool = True) -> str:
         self._check()
         self.commands.append((container, script))
+        if self.fail_on and self.fail_on in script:
+            raise RemoteError(f"command failed: {self.fail_on}")
         if " show " in script and script.rstrip().endswith("dump"):
             return self.dumps.get(container, "")
         m = re.match(r"cat (\S+) 2>/dev/null \|\| true", script.strip())

@@ -16,7 +16,8 @@ class Base(DeclarativeBase):
 
 
 def make_engine(url: str) -> AsyncEngine:
-    return create_async_engine(url, pool_pre_ping=True)
+    # The worker holds two connections per job (session + server lock) and so does config creation.
+    return create_async_engine(url, pool_pre_ping=True, pool_size=20, max_overflow=20, pool_timeout=10)
 
 
 def make_sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:

@@ -6,8 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import Job
 from app.domain.clock import Clock
-from app.jobs.locks import server_lock
-from app.jobs.queue import PermanentJobError, claim, fail, finish
+from datetime import timedelta
+
+from app.jobs.locks import ServerBusy, server_lock
+from app.jobs.queue import PermanentJobError, claim, fail, finish, postpone
+
+BUSY_RETRY = timedelta(seconds=10)
 
 log = logging.getLogger("panel.worker")
 
@@ -35,10 +39,15 @@ class Worker:
                 if handler is None:
                     raise PermanentJobError(f"no handler for job kind '{kind}'")
                 if job.server_id is not None:
-                    async with server_lock(self._sessionmaker, job.server_id):
+                    async with server_lock(self._sessionmaker, job.server_id, wait=False):
                         await handler(db, job)
                 else:
                     await handler(db, job)
+            except ServerBusy:
+                # Do not hold a worker slot while another job works on the same server.
+                await db.rollback()
+                await postpone(db, await db.get(Job, job_id), self._clock.now() + BUSY_RETRY)
+                return
             except PermanentJobError as e:
                 await db.rollback()
                 log.warning("job %s (%s) failed permanently: %s", job_id, kind, e)

@@ -42,6 +42,7 @@ class ServerPatch(BaseModel):
 class ContainerIn(BaseModel):
     container: str
     port: str | None = Field(default=None, pattern=r"^\d{1,5}$")
+    force: bool = False  # reinstall over an existing container: new server keys, all its configs stop working
 
 
 def _iso(dt: datetime | None) -> str | None:
@@ -158,9 +159,11 @@ async def install(server_id: int, body: ContainerIn, admin: AdminDep, db: Db):
     await _get(db, server_id)
     if body.container not in INSTALLABLE:
         raise ApiError(422, "unsupported_container", f"supported: {', '.join(sorted(INSTALLABLE))}")
+    if not body.force and await db.get(ServerContainer, (server_id, body.container)) is not None:
+        raise ApiError(409, "already_installed", "the protocol is already installed; reinstalling breaks its configs")
     payload = {"container": body.container, "port": body.port} if body.port else {"container": body.container}
     job = await enqueue(db, "install_container", payload, server_id=server_id,
                         dedupe_key=f"install:{server_id}:{body.container}")
-    audit(db, admin.actor, "container_install", f"server:{server_id}", container=body.container)
+    audit(db, admin.actor, "container_install", f"server:{server_id}", container=body.container, force=body.force)
     await db.commit()
     return _accepted({"job_id": job.id})

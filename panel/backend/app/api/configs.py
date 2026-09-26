@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.audit import audit
 from app.api.deps import AdminDep, ClockDep, Db, UserDep
 from app.api.presenters import config_out, traffic_by_config
-from app.db.models import Config, Server, ServerContainer, User
+from app.db.models import Config, Server, ServerContainer, TrafficDaily, User
 from app.domain.rules import user_can_unblock
 from app.drivers.base import get_driver, supported_containers
 from app.errors import ApiError
@@ -138,6 +138,7 @@ async def admin_assign(config_id: int, body: AssignIn, request: Request, admin: 
     if cfg.user_id != user.id:
         await ensure_below_limit(db, user)
         cfg.user_id = user.id
+        await db.execute(update(TrafficDaily).where(TrafficDaily.config_id == cfg.id).values(user_id=user.id))
         await enqueue_server_sync(db, cfg.server_id)
     audit(db, admin.actor, "config_assign", f"config:{cfg.id}", user_id=user.id)
     await db.commit()

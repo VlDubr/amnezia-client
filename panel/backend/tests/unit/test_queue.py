@@ -131,6 +131,7 @@ async def test_worker_serializes_jobs_of_one_server(sessionmaker, db, clock):
     task = asyncio.create_task(worker.run_forever(stop, poll_s=0.01))
     for _ in range(100):
         await asyncio.sleep(0.02)
+        clock.advance(11)  # jobs of a busy server are postponed for 10 s instead of holding a worker slot
         statuses = (await db.execute(select(Job.status).execution_options(populate_existing=True))).scalars().all()
         await db.rollback()
         if all(s == "done" for s in statuses):

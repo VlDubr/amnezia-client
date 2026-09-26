@@ -3,7 +3,7 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select, text, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,14 +26,14 @@ async def enqueue(db: AsyncSession, kind: str, payload: dict[str, Any] | None = 
                               "dedupe_key": dedupe_key, "run_after": run_after or RUN_NOW}
     stmt = insert(Job).values(**values)
     if dedupe_key is not None:
-        stmt = stmt.on_conflict_do_nothing(index_elements=["dedupe_key"],
-                                           index_where=text("status IN ('queued', 'running')"))
-    job_id = (await db.execute(stmt.returning(Job.id))).scalar_one_or_none()
-    if job_id is None:
-        job_id = (await db.execute(
-            select(Job.id).where(Job.dedupe_key == dedupe_key, Job.status.in_(("queued", "running")))
-        )).scalar_one()
-    return await db.get(Job, job_id)
+        # Only a queued job absorbs new work: a running one may already have read the state it acts on.
+        # A job waiting out a retry backoff is pulled forward so fresh work is not delayed by old failures.
+        stmt = stmt.on_conflict_do_update(index_elements=["dedupe_key"], index_where=text("status = 'queued'"),
+                                          set_={"run_after": func.least(Job.run_after, stmt.excluded.run_after)})
+    job_id = (await db.execute(stmt.returning(Job.id))).scalar_one()
+    job = await db.get(Job, job_id)
+    await db.refresh(job)
+    return job
 
 
 async def claim(db: AsyncSession, now: datetime) -> Job | None:
@@ -68,6 +68,14 @@ async def fail(db: AsyncSession, job: Job, error: str, now: datetime, retry: boo
         job.finished_at = now
     if job.server_id is not None:
         await db.execute(update(Server).where(Server.id == job.server_id).values(last_error=job.last_error))
+    await db.commit()
+
+
+async def postpone(db: AsyncSession, job: Job, until: datetime) -> None:
+    """Puts a claimed job back without counting an attempt (its server is busy)."""
+    job.status = "queued"
+    job.locked_at = None
+    job.run_after = until
     await db.commit()
 
 

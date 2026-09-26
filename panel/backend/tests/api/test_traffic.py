@@ -14,9 +14,10 @@ async def test_traffic_report(db, client, admin_token):
     c2 = Config(user_id=u.id, server_id=s2.id, container="amnezia-awg2", name="b", client_id="2")
     db.add_all([c1, c2])
     await db.flush()
-    db.add_all([TrafficDaily(config_id=c1.id, day=date(2026, 9, 25), rx=10, tx=1),
-                TrafficDaily(config_id=c1.id, day=date(2026, 9, 26), rx=20, tx=2),
-                TrafficDaily(config_id=c2.id, day=date(2026, 9, 26), rx=5, tx=5)])
+    def row(c, day, rx, tx):
+        return TrafficDaily(config_id=c.id, user_id=c.user_id, server_id=c.server_id, day=day, rx=rx, tx=tx)
+
+    db.add_all([row(c1, date(2026, 9, 25), 10, 1), row(c1, date(2026, 9, 26), 20, 2), row(c2, date(2026, 9, 26), 5, 5)])
     await db.commit()
 
     r = await client.get(f"/api/admin/traffic?user_id={u.id}", headers=bearer(admin_token))

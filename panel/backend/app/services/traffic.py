@@ -34,7 +34,8 @@ async def collect_traffic(db: AsyncSession, server_id: int, remote_factory: Remo
                 d_rx = traffic_delta(cfg.last_rx, cfg.counter_session, c.tx, c.session)
                 d_tx = traffic_delta(cfg.last_tx, cfg.counter_session, c.rx, c.session)
                 if d_rx or d_tx:
-                    stmt = insert(TrafficDaily).values(config_id=cfg.id, day=day, rx=d_rx, tx=d_tx)
+                    stmt = insert(TrafficDaily).values(config_id=cfg.id, user_id=cfg.user_id, server_id=server_id,
+                                                       day=day, rx=d_rx, tx=d_tx)
                     await db.execute(stmt.on_conflict_do_update(
                         index_elements=["config_id", "day"],
                         set_={"rx": TrafficDaily.rx + stmt.excluded.rx, "tx": TrafficDaily.tx + stmt.excluded.tx}))

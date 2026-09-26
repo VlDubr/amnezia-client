@@ -149,9 +149,11 @@ async def test_user_details_include_configs_and_traffic(db, client, admin_token)
     uid = (await _create(client, admin_token))["user"]["id"]
     servers = await _servers_with_configs(db, uid)
     configs = (await db.execute(select(Config).order_by(Config.id))).scalars().all()
-    db.add_all([TrafficDaily(config_id=configs[0].id, day=date(2026, 9, 25), rx=100, tx=1000),
-                TrafficDaily(config_id=configs[0].id, day=date(2026, 9, 26), rx=50, tx=500),
-                TrafficDaily(config_id=configs[1].id, day=date(2026, 9, 26), rx=7, tx=70)])
+    def row(c, day, rx, tx):
+        return TrafficDaily(config_id=c.id, user_id=c.user_id, server_id=c.server_id, day=day, rx=rx, tx=tx)
+
+    db.add_all([row(configs[0], date(2026, 9, 25), 100, 1000), row(configs[0], date(2026, 9, 26), 50, 500),
+                row(configs[1], date(2026, 9, 26), 7, 70)])
     await db.commit()
     body = (await client.get(f"/api/admin/users/{uid}", headers=bearer(admin_token))).json()
     assert body["traffic_total"] == {"rx": 157, "tx": 1570}

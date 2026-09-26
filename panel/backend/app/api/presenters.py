@@ -36,9 +36,8 @@ async def traffic_by_user(db: AsyncSession, user_ids: list[int]) -> dict[int, di
     if not user_ids:
         return {}
     rows = await db.execute(
-        select(Config.user_id, func.sum(TrafficDaily.rx), func.sum(TrafficDaily.tx))
-        .join(Config, Config.id == TrafficDaily.config_id)
-        .where(Config.user_id.in_(user_ids)).group_by(Config.user_id))
+        select(TrafficDaily.user_id, func.sum(TrafficDaily.rx), func.sum(TrafficDaily.tx))
+        .where(TrafficDaily.user_id.in_(user_ids)).group_by(TrafficDaily.user_id))
     return {uid: _traffic(rx, tx) for uid, rx, tx in rows}
 
 

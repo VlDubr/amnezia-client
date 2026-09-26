@@ -107,8 +107,8 @@ async def get_user(user_id: int, _: AdminDep, db: Db, clock: ClockDep, settings:
     out["configs"] = [config_out(c, s, user, now, traffic.get(c.id)) for c, s in rows]
     per_server = await db.execute(
         select(Server.id, Server.name, func.sum(TrafficDaily.rx), func.sum(TrafficDaily.tx))
-        .join(Config, Config.server_id == Server.id).join(TrafficDaily, TrafficDaily.config_id == Config.id)
-        .where(Config.user_id == user.id).group_by(Server.id, Server.name).order_by(Server.id))
+        .join(TrafficDaily, TrafficDaily.server_id == Server.id)
+        .where(TrafficDaily.user_id == user.id).group_by(Server.id, Server.name).order_by(Server.id))
     out["traffic_by_server"] = [{"server_id": sid, "server_name": name, "rx": int(rx), "tx": int(tx)}
                                 for sid, name, rx, tx in per_server]
     return out

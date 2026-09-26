@@ -1,22 +1,27 @@
 """Creating and exporting configs (spec §5, §7)."""
 
 import asyncio
+import contextlib
+import logging
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func, select
+import sqlalchemy.exc
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Config, Server, ServerContainer, User
+from app.db.models import Config, RevokedClient, Server, ServerContainer, User
 from app.domain.rules import UserState, is_config_active, user_status
 from app.drivers.base import ClientMaterial, get_driver
 from app.errors import ApiError
 from app.jobs.locks import server_lock
 from app.render.qr import qr_svg
 from app.services.materials import has_private_part, seal, unseal
+from app.services.reconcile import revoke
 from app.ssh.conn import RemoteError
 
 CREATE_TIMEOUT_S = 30
+log = logging.getLogger("panel.configs")
 
 
 def ensure_user_active(user: User, now: datetime) -> None:
@@ -75,26 +80,43 @@ async def create_config(db: AsyncSession, state: Any, user_id: int, server_id: i
     if sc is None:
         raise ApiError(422, "unsupported_container", "this protocol is not installed on the server")
     driver = get_driver(container)
-    desired, known, materials = await desired_clients(db, state.secretbox, server_id, container, now)
-    taken = {r for r in (driver.reserved(ClientMaterial("", m)) for m in materials) if r}
+    server_name = server.name
 
     try:
-        async with asyncio.timeout(CREATE_TIMEOUT_S):
+        async with asyncio.timeout(CREATE_TIMEOUT_S) as deadline:
             async with server_lock(state.sessionmaker, server_id):
+                # Read the desired state only now: while waiting for the lock a sync may have changed it.
+                desired, known, materials = await desired_clients(db, state.secretbox, server_id, container, now)
+                taken = {r for r in (driver.reserved(ClientMaterial("", m)) for m in materials) if r}
                 async with state.remote_factory(server) as remote:
                     params = await driver.read_params(remote)
                     material = await driver.create_material(remote, params, taken)
-                    await driver.apply(remote, [*desired, material], known | {material.client_id})
-    except (RemoteError, TimeoutError, OSError) as e:
+                    # Until the config row is committed the new client counts as revoked, so a peer left
+                    # behind by a failure below is removed by the next reconcile instead of imported.
+                    async with state.sessionmaker() as side:
+                        await revoke(side, server_id, container, [material.client_id])
+                        await side.commit()
+                    try:
+                        await driver.apply(remote, [*desired, material], known | {material.client_id})
+                    except Exception:
+                        with contextlib.suppress(Exception):
+                            await driver.apply(remote, desired, known | {material.client_id})
+                        raise
+                deadline.reschedule(None)
+                sc.params_json = params
+                cfg = Config(user_id=user.id, server_id=server_id, container=container,
+                             name=(name or f"{server_name} {driver.title}")[:128], client_id=material.client_id,
+                             material_enc=seal(state.secretbox, material.data))
+                db.add(cfg)
+                await db.execute(delete(RevokedClient).where(
+                    RevokedClient.server_id == server_id, RevokedClient.container == container,
+                    RevokedClient.client_id == material.client_id))
+                # Commit while the server is still locked, so no sync sees the peer without its row.
+                await db.commit()
+    except (RemoteError, TimeoutError, OSError, sqlalchemy.exc.TimeoutError) as e:
         await db.rollback()
-        raise ApiError(503, "server_unavailable", f"the server did not respond: {e}") from e
-
-    sc.params_json = params
-    cfg = Config(user_id=user.id, server_id=server_id, container=container,
-                 name=(name or f"{server.name} {driver.title}")[:128], client_id=material.client_id,
-                 material_enc=seal(state.secretbox, material.data))
-    db.add(cfg)
-    await db.commit()
+        log.warning("config creation on server %s failed: %s", server_id, e)
+        raise ApiError(503, "server_unavailable", "the server did not respond, try again later") from e
     return cfg
 
 
