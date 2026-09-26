@@ -16,6 +16,7 @@ class FakeRemote:
         self.outputs: dict[str, str] = {}  # command substring -> stdout for container_exec
         self.fail_with: str | None = None
         self.fail_on: str | None = None  # fail container commands that contain this text
+        self.hooks: list = []  # callables (container, script) run for every container command
 
     def _check(self):
         if self.fail_with:
@@ -43,8 +44,19 @@ class FakeRemote:
         self.commands.append((container, script))
         if self.fail_on and self.fail_on in script:
             raise RemoteError(f"command failed: {self.fail_on}")
+        for hook in self.hooks:
+            hook(container, script)
         if " show " in script and script.rstrip().endswith("dump"):
             return self.dumps.get(container, "")
+        rm = re.fullmatch(r"rm -f (\S+)", script.strip())
+        if rm:
+            self.files.pop((container, rm.group(1).strip("'")), None)
+            return ""
+        grep = re.match(r"grep -l '\^(\w+)' (\S+)/\* 2>/dev/null", script.strip())
+        if grep:
+            word, folder = grep.groups()
+            return "\n".join(path for (c, path), text in self.files.items()
+                             if c == container and path.startswith(folder + "/") and text.startswith(word))
         m = re.match(r"cat (\S+) 2>/dev/null \|\| true", script.strip())
         if m:
             return self.files.get((container, m.group(1)), "")
