@@ -42,7 +42,8 @@ async def install_container(remote: Remote, container: str, host: str, dns: tupl
     if build.exit_status != 0:
         raise RemoteError(f"docker build failed: {(build.stdout + build.stderr)[-800:]}")
     await remote.run(replace_vars(script(folder, "run_container.sh"), variables))
-    await remote.container_exec(container, replace_vars(script(folder, "configure_container.sh"), variables))
+    await remote.container_exec(container, replace_vars(script(folder, "configure_container.sh"), variables),
+                                shell=getattr(driver, "shell", "bash"))
     await remote.write_container_file(container, "/opt/amnezia/start.sh",
                                       replace_vars(script(folder, "start.sh"), variables))
     before_start = getattr(driver, "before_start", None)
