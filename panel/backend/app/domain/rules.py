@@ -63,3 +63,10 @@ def traffic_delta(last: int | None, last_session: str | None, new: int, new_sess
     if last is None or new < last or last_session != new_session:
         return new
     return new - last
+
+
+def expires_on(expires_at: datetime | None, tz: str) -> date | None:
+    """Inverse of expiry_instant: the last day of access as shown to people."""
+    if expires_at is None:
+        return None
+    return (expires_at.astimezone(ZoneInfo(tz)) - timedelta(days=1)).date()

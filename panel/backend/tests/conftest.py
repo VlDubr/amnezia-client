@@ -1,34 +1,24 @@
+import os
+from datetime import UTC, datetime
+
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
 
 from app.config import Settings
+from app.db.base import make_engine, make_sessionmaker
+from app.db.migrate import upgrade_head
+from app.db.models import Admin, InviteKey, User
+from app.domain.clock import FixedClock
 from app.main import create_app
+from app.security.passwords import hash_password
+from app.security.tokens import new_invite_key, normalize_invite_key, sha256_hex
 
-
-@pytest.fixture
-def settings() -> Settings:
-    return Settings(
-        database_url="postgresql+asyncpg://unused/unused",
-        master_key="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-        scheduler_enabled=False,
-    )
-
-
-@pytest.fixture
-async def client(settings):
-    app = create_app(settings)
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
-        yield c
-
+MASTER_KEY = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+ADMIN_PASSWORD = "Adm1n-Pa55w0rd!xyz"
+USER_PASSWORD = "Us3r-Pa55w0rd!qwe"
 
 # --- database -------------------------------------------------------------
-
-import os  # noqa: E402
-
-from sqlalchemy import text  # noqa: E402
-
-from app.db.base import make_engine, make_sessionmaker  # noqa: E402
-from app.db.migrate import upgrade_head  # noqa: E402
 
 
 @pytest.fixture(scope="session")
@@ -65,3 +55,73 @@ async def sessionmaker(engine):
 async def db(sessionmaker):
     async with sessionmaker() as s:
         yield s
+
+
+# --- app ------------------------------------------------------------------
+
+
+@pytest.fixture
+def clock() -> FixedClock:
+    return FixedClock(datetime(2026, 9, 26, 12, tzinfo=UTC))
+
+
+@pytest.fixture
+def settings(pg_url) -> Settings:
+    return Settings(database_url=pg_url, master_key=MASTER_KEY, scheduler_enabled=False, cookie_secure=False,
+                    tz="Europe/Moscow")
+
+
+@pytest.fixture
+def app(settings, sessionmaker, clock):
+    return create_app(settings, sessionmaker=sessionmaker, clock=clock)
+
+
+@pytest.fixture
+async def client(app):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        yield c
+
+
+# --- factories ------------------------------------------------------------
+
+
+async def make_admin(db, login="admin", password=ADMIN_PASSWORD) -> Admin:
+    admin = Admin(login=login, password_hash=hash_password(password))
+    db.add(admin)
+    await db.commit()
+    return admin
+
+
+async def make_user(db, display_name="Ivan", max_configs=3, **kw) -> tuple[User, str]:
+    user = User(display_name=display_name, max_configs=max_configs, **kw)
+    db.add(user)
+    await db.flush()
+    key = new_invite_key()
+    db.add(InviteKey(user_id=user.id, key_hash=sha256_hex(normalize_invite_key(key))))
+    await db.commit()
+    return user, key
+
+
+def bearer(token: str) -> dict:
+    return {"Authorization": f"Bearer {token}"}
+
+
+async def login(client, login_, password, role) -> str:
+    r = await client.post("/api/auth/login", json={"login": login_, "password": password, "role": role})
+    assert r.status_code == 200, r.text
+    client.cookies.clear()
+    return r.json()["token"]
+
+
+@pytest.fixture
+async def admin_token(db, client):
+    await make_admin(db)
+    return await login(client, "admin", ADMIN_PASSWORD, "admin")
+
+
+async def registered_user(db, client, login_="ivan", **kw) -> tuple[User, str]:
+    user, key = await make_user(db, **kw)
+    r = await client.post("/api/auth/invite/redeem", json={"key": key, "login": login_, "password": USER_PASSWORD})
+    assert r.status_code == 200, r.text
+    client.cookies.clear()
+    return user, r.json()["token"]
