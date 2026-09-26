@@ -160,3 +160,26 @@ async def test_socks5_traffic_reads_only_new_log_lines():
     second = (await get_driver(S5).read_traffic(r))["u1"]
     assert (second.rx, second.tx) == (20, 200)  # cumulative, only the new line was added
     assert f"tail -c +{len(line) + 1} {LOG}" in [c for w, c in r.commands if "tail -c" in c][-1]
+
+
+async def test_server_derived_names_are_quoted_in_shell_commands():
+    import shlex
+
+    from app.drivers.base import get_driver
+    from tests.unit.test_ikev2_driver import CLIENTS, IK, remote as ik_remote
+    from tests.unit.test_openvpn_driver import D, OVPN, ovpn_remote
+
+    odd = "evil;touch /pwn"
+    r = ik_remote()
+    r.outputs[f"ls {CLIENTS}"] = f"{odd}.p12\n"
+    await get_driver(IK).apply(r, [], {odd}, revoked={odd})
+    rm = [c for w, c in r.commands if w == IK and c.startswith("rm -f")]
+    assert rm == [f"rm -f {shlex.quote(f'{CLIENTS}/{odd}.p12')}"]
+
+    odd = "evil;touch x"  # a DN cannot contain '/', so no slash here
+    r = ovpn_remote()
+    r.files[(OVPN, f"{D}/pki/index.txt")] += f"V\t360101000000Z\t\t0A\tunknown\t/CN={odd}\n"
+    await get_driver(OVPN).apply(r, [], {odd})
+    kill = [c for w, c in r.commands if w == OVPN and "nc 127.0.0.1" in c][-1]
+    assert f"kill {odd}" not in kill.split("|")[0].replace(shlex.quote(f"kill {odd}\nquit\n"), "")
+    assert shlex.quote(f"kill {odd}\nquit\n") in kill

@@ -51,7 +51,7 @@ class Ikev2Driver:
 
     async def list_clients(self, remote: Remote) -> dict[str, ClientInfo]:
         out = await remote.container_exec(self.container, f"ls {CLIENTS} 2>/dev/null || true")
-        names = [line[:-4] for line in out.split() if line.endswith(".p12")]
+        names = [line[:-4] for line in out.splitlines() if line.endswith(".p12")]
         return {n: ClientInfo(n, None, {}) for n in names}
 
     async def _serial(self, remote: Remote, client_id: str) -> str | None:
@@ -114,7 +114,7 @@ class Ikev2Driver:
             if client_id in revoked:
                 q = shlex.quote(client_id)
                 await remote.container_exec(self.container, f"certutil -D -d {NSS} -n {q} || true")
-                await remote.container_exec(self.container, f"rm -f {CLIENTS}/{client_id}.p12")
+                await remote.container_exec(self.container, f"rm -f {shlex.quote(f'{CLIENTS}/{client_id}.p12')}")
                 result.removed.add(client_id)
         if crl != before:
             await remote.write_container_file(self.container, REVOKED,

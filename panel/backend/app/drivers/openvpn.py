@@ -120,7 +120,8 @@ class OpenVpnDriver:
         return {line.rsplit("/", 1)[1] for line in out.split() if "/" in line}
 
     async def _kill(self, remote: Remote, cn: str) -> None:
-        cmd = f"(printf 'kill {cn}\\nquit\\n'; sleep 1) | nc {MANAGEMENT[0]} {MANAGEMENT[1]} >/dev/null 2>&1 || true"
+        payload = shlex.quote(f"kill {cn}\nquit\n")  # the CN comes from the server's index.txt: never trust it
+        cmd = f"(printf %s {payload}; sleep 1) | nc {MANAGEMENT[0]} {MANAGEMENT[1]} >/dev/null 2>&1 || true"
         await remote.container_exec(self.container, cmd)
 
     async def apply(self, remote: Remote, desired: list[ClientMaterial], known_ids: set[str],
