@@ -1,9 +1,18 @@
 from functools import lru_cache
-from pathlib import Path
+from pathlib import Path, PurePath
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-REPO_SCRIPTS_DIR = Path(__file__).resolve().parents[3] / "client" / "server_scripts"
+
+def default_scripts_dir(module_file: PurePath) -> PurePath:
+    """client/server_scripts of a repository checkout, or /app/server_scripts next to the app in the image."""
+    parents = module_file.parents
+    if len(parents) > 4 and parents[1].name == "backend" and parents[2].name == "panel":
+        return parents[3] / "client" / "server_scripts"
+    return parents[1] / "server_scripts"
+
+
+REPO_SCRIPTS_DIR = Path(default_scripts_dir(Path(__file__).resolve()))
 
 
 class Settings(BaseSettings):

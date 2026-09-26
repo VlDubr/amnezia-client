@@ -18,7 +18,11 @@ SSH_PASSWORD = "panel-test-password"
 
 
 def docker(*args: str, check: bool = True) -> str:
-    return subprocess.run(["docker", *args], check=check, capture_output=True, text=True).stdout.strip()
+    r = subprocess.run(["docker", *args], check=False, capture_output=True, text=True, encoding="utf-8",
+                       errors="replace")
+    if check and r.returncode != 0:
+        raise RuntimeError(f"docker {' '.join(args)} failed: {r.stderr.strip()[-1500:]}")
+    return r.stdout.strip()
 
 
 @pytest.fixture(scope="session")

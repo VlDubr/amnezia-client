@@ -1,0 +1,6 @@
+*
+!panel/backend/pyproject.toml
+!panel/backend/uv.lock
+!panel/backend/app/**
+!client/server_scripts/**
+**/__pycache__

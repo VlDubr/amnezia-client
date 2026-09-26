@@ -16,7 +16,7 @@ def scripts_dir() -> Path:
 
 def script(folder: str | None, name: str) -> str:
     path = scripts_dir() / folder / name if folder else scripts_dir() / name
-    return path.read_text(encoding="utf-8")
+    return path.read_text(encoding="utf-8")  # universal newlines: CRLF checkouts on Windows become LF
 
 
 def replace_vars(text: str, variables: dict[str, str], keep_unknown: bool = True) -> str:

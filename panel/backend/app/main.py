@@ -21,6 +21,7 @@ from app.ssh.conn import fetch_host_key
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logging.getLogger("asyncssh").setLevel(logging.WARNING)
 
 
 def create_app(settings: Settings | None = None,
