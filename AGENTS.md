@@ -177,4 +177,8 @@ Add every other file by hand to `sources.cmake` or to the platform file (`client
 - **Jobs.** Jobs are stored in the `jobs` table and run by the in-process worker (`app/jobs/`).
   - All SSH work on one server is serialized by `server_lock` (a PostgreSQL advisory lock).
   - The scheduler only enqueues jobs.
+- **Qt client admin screens.**
+  - Settings → "Amnezia Panel" opens `PagePanelLogin`/`PagePanelUsers`/`PagePanelUser`.
+  - `PanelApiClient` (`client/core/controllers/panel/`) calls the panel REST API with the admin token. The token and the panel URL are stored in `SecureAppSettingsRepository`.
+  - `PanelUiController` (`client/ui/controllers/panel/`) is the QML context property `PanelController`.
 - **Deploy.** `panel/deploy` holds the docker compose stack: Caddy, backend, PostgreSQL and backups. `PANEL_MASTER_KEY` encrypts secrets in the database.

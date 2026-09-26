@@ -107,6 +107,20 @@ If a server's host key changes (for example, after a reinstall), the panel stops
   Migrations run automatically on start.
 - **If the panel goes down**, VPN servers keep working. Only the web UI, config issuing and automatic expiry pause, and pending work catches up after a restart.
 
+## Managing users from the AmneziaVPN app
+
+Open Settings → **Amnezia Panel** in the AmneziaVPN app and sign in with the panel address and an administrator login.
+
+From there you can do the same user work as in the web admin area:
+
+- list and create users (the invite key is shown once);
+- set the config limit and the last day of access;
+- block, unblock or delete a user, or issue a new invite key;
+- issue configs on any server and show, block or delete them;
+- see the traffic per server.
+
+Servers are added and protocols are installed in the web admin area only.
+
 ## API
 
 The REST API lives under `/api`. Its OpenAPI description is served at `/api/openapi.json`, and interactive docs are at `/api/docs`.
