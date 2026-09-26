@@ -63,3 +63,34 @@ async def test_broken_container_does_not_stop_the_others(db, clock):
     db.expire_all()
     s = await db.get(Server, sid)
     assert s.last_error and XRAY in s.last_error
+
+
+async def test_socks5_leaves_open_proxy_alone_without_panel_users():
+    from tests.unit.test_socks5_driver import BASE, CFG, S5, remote as s5_remote
+    from app.drivers.base import get_driver
+
+    r = s5_remote(BASE.replace("users admin:CL:adminpass\n", "").replace("auth strong", "auth none"))
+    await get_driver(S5).apply(r, [], set())
+    assert "auth none" in r.files[(S5, CFG)]
+    assert not [c for w, c in r.commands if "docker restart" in c]
+
+
+async def test_socks5_keeps_users_it_cannot_parse():
+    from tests.unit.test_socks5_driver import BASE, CFG, S5, remote as s5_remote
+    from app.drivers.base import ClientMaterial, get_driver
+
+    r = s5_remote(BASE.replace("users admin:CL:adminpass", "users admin:CR:$1$abc$hash"))
+    await get_driver(S5).apply(r, [ClientMaterial("u1", {"login": "u1", "secret": "p1"})], {"u1"})
+    assert "users admin:CR:$1$abc$hash" in r.files[(S5, CFG)] and "users u1:CL:p1" in r.files[(S5, CFG)]
+
+
+async def test_telemt_keeps_lines_it_does_not_manage():
+    from tests.unit.test_telemt_driver import CFG, SECRET, TM, TOML, remote as tm_remote
+    from app.drivers.base import ClientMaterial, get_driver
+
+    text = TOML.replace(f'amnezia = "{SECRET}"', f'# admin note\n"my-proxy" = "{SECRET}"\nmy-proxy2 = "{SECRET}"')
+    r = tm_remote(text)
+    await get_driver(TM).apply(r, [ClientMaterial("p1", {"secret": "a" * 32})], {"p1"})
+    out = r.files[(TM, CFG)]
+    assert "# admin note" in out and f'"my-proxy" = "{SECRET}"' in out and f'my-proxy2 = "{SECRET}"' in out
+    assert f'p1 = "{"a" * 32}"' in out

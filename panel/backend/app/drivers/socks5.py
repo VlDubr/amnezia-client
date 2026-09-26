@@ -26,15 +26,28 @@ def _users(cfg: str) -> dict[str, str]:
     return users
 
 
+def _other_entries(cfg: str) -> list[str]:
+    """`users` entries the panel does not manage (e.g. crypted `login:CR:hash`); they are kept verbatim."""
+    out = []
+    for line in cfg.splitlines():
+        parts = line.split()
+        if parts and parts[0] == "users":
+            out += [e for e in parts[1:] if e.partition(":")[2].partition(":")[0] != "CL"]
+    return out
+
+
 def _rewrite(cfg: str, users: dict[str, str]) -> str:
-    """Replaces the users lines and forces `auth strong`; users go before the first auth/socks line."""
+    """Replaces the users lines (keeping entries it does not manage) and requires `auth strong` whenever there
+    are users; users go before the first log/auth/socks line."""
+    others = _other_entries(cfg)
     kept = [line for line in cfg.splitlines() if not line.split()[:1] == ["users"]]
-    kept = ["auth strong" if line.split()[:1] == ["auth"] else line for line in kept]
-    if not any(line.split()[:1] == ["auth"] for line in kept):
-        at = next((i for i, line in enumerate(kept) if line.split()[:1] == ["socks"]), len(kept))
-        kept.insert(at, "auth strong")
+    if users or others:
+        kept = ["auth strong" if line.split()[:1] == ["auth"] else line for line in kept]
+        if not any(line.split()[:1] == ["auth"] for line in kept):
+            at = next((i for i, line in enumerate(kept) if line.split()[:1] == ["socks"]), len(kept))
+            kept.insert(at, "auth strong")
     at = next((i for i, line in enumerate(kept) if line.split()[:1] in (["log"], ["auth"], ["socks"])), len(kept))
-    kept[at:at] = [f"users {login}:CL:{password}" for login, password in users.items()]
+    kept[at:at] = [f"users {e}" for e in others] + [f"users {login}:CL:{password}" for login, password in users.items()]
     return "\n".join(kept) + "\n"
 
 
@@ -88,6 +101,8 @@ class Socks5Driver:
             if login not in users and m.data.get("secret"):
                 users[login] = m.data["secret"]
                 result.added.add(login)
+        if users == current and (not users or "auth strong" in cfg):
+            return result  # nothing to change: never touch (or restart) the proxy
         new_cfg = _rewrite(cfg, users)
         if new_cfg != cfg:
             await remote.write_container_file(self.container, CONFIG, new_cfg)

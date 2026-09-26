@@ -101,11 +101,16 @@ class TelemtDriver:
                 result.added.add(name)
         if users != current:
             span = _section(lines, "access.users")
-            body = [f'{name} = "{secret}"' for name, secret in users.items()]
+            added = [f'{name} = "{users[name]}"' for name in users if name not in current]
             if span is None:
-                lines += ["", "[access.users]", *body]
+                lines += ["", "[access.users]", *added]
             else:
-                lines[span[0]:span[1]] = body + [""]
+                # Only the lines the panel parsed change; comments and users it cannot parse stay as they are.
+                body = [line for line in lines[span[0]:span[1]]
+                        if not ((m := _USER.match(line)) and m.group(1) not in users)]
+                while body and not body[-1].strip():
+                    body.pop()
+                lines[span[0]:span[1]] = body + added + [""]
             await remote.write_container_file(self.container, CONFIG, "\n".join(lines) + "\n")
             await remote.run(f"sudo docker restart {self.container}")
         return result
