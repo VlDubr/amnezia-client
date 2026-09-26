@@ -1,6 +1,6 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
-import { ApiError } from "../api/client";
+import { ApiError, NetworkError } from "../api/client";
 import en from "./en.json";
 import ru from "./ru.json";
 
@@ -37,7 +37,7 @@ export function errorText(err: unknown): string {
     const key = `errors.${err.code}`;
     return i18n.exists(key) ? i18n.t(key) : err.message;
   }
-  if (err instanceof TypeError) return i18n.t("errors.network");
+  if (err instanceof NetworkError) return i18n.t("errors.network");
   return err instanceof Error ? err.message : String(err);
 }
 

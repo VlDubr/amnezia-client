@@ -43,6 +43,23 @@ describe("user login", () => {
     expect(body).toEqual({ login: "ivan", password: "secret-password", role: "user" });
   });
 
+  it("signs in again after a sign out left an empty session in the cache", async () => {
+    const s = anonymous();
+    server.use(
+      http.post("/api/auth/login", () => {
+        s.signIn();
+        return HttpResponse.json({ token: "t", role: "user" });
+      }),
+    );
+    const { router, queryClient } = renderApp("/login");
+    queryClient.setQueryData(["session"], null); // what sign out leaves behind
+    await userEvent.type(await screen.findByLabelText(/Логин/), "ivan");
+    await userEvent.type(screen.getByLabelText(/Пароль/), "secret-password");
+    await userEvent.click(screen.getByRole("button", { name: "Войти" }));
+    expect(await screen.findByRole("heading", { name: "Мои конфиги" })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/");
+  });
+
   it("shows a translated error for wrong credentials", async () => {
     anonymous();
     server.use(

@@ -10,6 +10,14 @@ export class ApiError extends Error {
   }
 }
 
+/** The panel could not be reached at all (offline, DNS, connection reset). */
+export class NetworkError extends Error {
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = "NetworkError";
+  }
+}
+
 type Options = { method?: string; body?: unknown };
 
 const SAFE = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -32,12 +40,17 @@ export async function api<T = unknown>(path: string, { method = "GET", body }: O
     const csrf = cookie("panel_csrf");
     if (csrf) headers["X-CSRF-Token"] = csrf;
   }
-  const res = await fetch(path, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-    credentials: "same-origin",
-  });
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      credentials: "same-origin",
+    });
+  } catch (e) {
+    throw new NetworkError(e);
+  }
   if (res.status === 204) return null as T;
   const text = await res.text();
   let data: unknown = null;

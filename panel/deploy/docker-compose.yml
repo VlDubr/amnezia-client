@@ -34,7 +34,9 @@ services:
         condition: service_healthy
 
   caddy:
-    image: caddy:2-alpine
+    build:
+      context: ../..
+      dockerfile: panel/deploy/Caddy.Dockerfile
     restart: unless-stopped
     ports:
       - "80:80"
@@ -43,8 +45,6 @@ services:
     environment:
       PANEL_DOMAIN: ${PANEL_DOMAIN:?set PANEL_DOMAIN in .env}
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ../web/dist:/srv/web:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

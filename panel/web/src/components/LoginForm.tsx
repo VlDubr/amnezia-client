@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
 import { api } from "../api/client";
 import type { Role } from "../api/types";
-import { SESSION_KEY, nextPath } from "../auth/session";
+import { SESSION_KEY, loadSession, nextPath } from "../auth/session";
 import { ErrorAlert } from "./ErrorAlert";
 
 /** Sign in for either area; on success the session is refetched and the visitor goes to `next`. */
@@ -21,7 +21,7 @@ export function LoginForm({ role }: { role: Role }) {
     mutationFn: () => api("/api/auth/login", { method: "POST", body: { login, password, role } }),
     onSuccess: async () => {
       queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== SESSION_KEY[0] });
-      await queryClient.invalidateQueries({ queryKey: SESSION_KEY });
+      await loadSession(queryClient);
       navigate(nextPath(location.search, role), { replace: true });
     },
   });

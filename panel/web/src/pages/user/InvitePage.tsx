@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router";
 import { api } from "../../api/client";
-import { SESSION_KEY } from "../../auth/session";
+import { loadSession } from "../../auth/session";
 import { AuthLayout } from "../../components/AuthLayout";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { PasswordField, passwordProblem } from "../../components/PasswordField";
@@ -28,7 +28,7 @@ export default function InvitePage() {
   const redeem = useMutation({
     mutationFn: () => api("/api/auth/invite/redeem", { method: "POST", body: { key, login, password } }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: SESSION_KEY });
+      await loadSession(queryClient);
       navigate("/", { replace: true });
     },
   });

@@ -44,19 +44,13 @@ You need a Linux VPS with Docker and the compose plugin, plus a DNS name that po
 
    > **Warning:** `PANEL_MASTER_KEY` encrypts the SSH credentials of your servers and the private keys of all configs in the database. Store a copy outside the server. Without it, a database backup cannot be restored, and every user will need new configs.
 
-3. Build the web UI once (it needs Node.js 20 or later; `panel/web` is part of stage 2):
-
-   ```bash
-   (cd ../web && npm ci && npm run build)
-   ```
-
-4. Start the stack:
+3. Start the stack (the Caddy image builds the web UI):
 
    ```bash
    docker compose up -d --build
    ```
 
-5. Create the first administrator:
+4. Create the first administrator:
 
    ```bash
    docker compose exec backend python -m app.cli create-admin --login admin
@@ -115,3 +109,16 @@ uv run pytest -m integration  # real AmneziaWG/WireGuard containers driven over 
 ```
 
 To reuse an existing database instead of testcontainers, set `PANEL_TEST_DATABASE_URL=postgresql+asyncpg://...`.
+
+Web UI (`panel/web`, Node.js 20+, React + Mantine):
+
+```bash
+cd panel/web
+npm ci
+npm run dev        # http://localhost:5173, proxies /api to a backend on :8000 (override with PANEL_API)
+npm test           # component tests (Vitest + Testing Library + MSW)
+npx playwright install chromium
+npm run e2e        # browser tests: real backend with an in-memory VPN server + the production build
+```
+
+The user cabinet is at `/`; the administrator area is at `/admin`.

@@ -1,5 +1,5 @@
 import { Center, Loader } from "@mantine/core";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect, type ReactNode } from "react";
 import { Navigate, useLocation } from "react-router";
 import { ApiError, api, setUnauthorizedHandler } from "../api/client";
@@ -20,6 +20,15 @@ export function useSession() {
     },
     staleTime: 60_000,
   });
+}
+
+/** Loads the new session into the cache before navigating into a protected area.
+
+Invalidating is not enough: without mounted observers the cached value (null after a sign out)
+would be used by the route guard before any refetch finishes.
+*/
+export async function loadSession(queryClient: QueryClient) {
+  queryClient.setQueryData(SESSION_KEY, await api<SessionInfo>("/api/auth/session"));
 }
 
 /** Drops the cached session on any 401 so route guards send the visitor to a login page. */

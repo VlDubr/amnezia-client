@@ -8,6 +8,9 @@ export default defineConfig({
     port: 5173,
     proxy: { "/api": process.env.PANEL_API ?? "http://127.0.0.1:8000" },
   },
+  preview: {
+    proxy: { "/api": process.env.PANEL_API ?? "http://127.0.0.1:8000" },
+  },
   test: {
     environment: "jsdom",
     setupFiles: ["./test/setup.ts"],
