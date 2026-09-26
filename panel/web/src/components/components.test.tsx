@@ -30,6 +30,14 @@ describe("ShareModal", () => {
     expect(document.querySelector("img")).toBeNull();
   });
 
+  it("shows a service link instead of a vpn:// key", () => {
+    const link = "tg://proxy?server=h&port=443&secret=ee00";
+    renderUi(<ShareModal opened name="TG" data={{ ...EXPORT, vpn_key: "", native: link }} onClose={() => {}} />);
+    expect(screen.queryByLabelText("Ключ для приложения AmneziaVPN")).toBeNull();
+    expect(screen.getByDisplayValue(link)).toBeInTheDocument();
+    expect(screen.getByTestId("qr")).toBeInTheDocument();
+  });
+
   it("explains when a config cannot be issued again", () => {
     renderUi(<ShareModal opened name="old" data={null} onClose={() => {}} />);
     expect(screen.getByText(/импортирован с сервера/)).toBeInTheDocument();

@@ -3,16 +3,11 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router";
 import { ApiError, api } from "../../api/client";
-import { keys, useAction, useServer } from "../../api/hooks";
+import { keys, useAction, useInstallable, useServer } from "../../api/hooks";
 import { confirmAction } from "../../components/confirm";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { JobStatus } from "../../components/JobStatus";
 import { formatDateTime } from "../../lib/format";
-
-const INSTALLABLE = [
-  { container: "amnezia-awg2", title: "AmneziaWG" },
-  { container: "amnezia-wireguard", title: "WireGuard" },
-];
 
 type Job = { job_id: number };
 
@@ -21,6 +16,7 @@ export default function ServerPage() {
   const id = Number(useParams().id);
   const navigate = useNavigate();
   const server = useServer(id);
+  const installable = useInstallable();
   const [jobId, setJobId] = useState<number | null>(null);
   const [installing, setInstalling] = useState(false);
   const [port, setPort] = useState("");
@@ -138,7 +134,7 @@ export default function ServerPage() {
         <Stack>
           <ErrorAlert error={install.error} />
           <TextInput label={t("admin.install_port")} value={port} onChange={(e) => setPort(e.currentTarget.value.replace(/\D/g, ""))} />
-          {INSTALLABLE.map((c) => (
+          {installable.data?.map((c) => (
             <Button key={c.container} variant="light" loading={install.isPending} onClick={() => startInstall(c.container)}>
               {c.title}
             </Button>

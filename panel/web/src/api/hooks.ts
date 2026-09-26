@@ -36,6 +36,12 @@ export const useUser = (id: number) =>
 export const useServers = () => useQuery({ queryKey: keys.servers, queryFn: () => api<ServerInfo[]>("/api/admin/servers") });
 export const useServer = (id: number) =>
   useQuery({ queryKey: keys.server(id), queryFn: () => api<ServerInfo>(`/api/admin/servers/${id}`) });
+export const useInstallable = () =>
+  useQuery({
+    queryKey: ["admin", "installable"],
+    queryFn: () => api<{ container: string; title: string }[]>("/api/admin/servers/installable"),
+    staleTime: Infinity,
+  });
 export const useOrphans = () =>
   useQuery({ queryKey: keys.orphans, queryFn: () => api<Config[]>("/api/admin/configs?orphan=true") });
 export const useTraffic = (params: URLSearchParams) =>

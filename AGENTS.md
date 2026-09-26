@@ -172,6 +172,8 @@ Add every other file by hand to `sources.cmake` or to the platform file (`client
   - A driver must issue the same server commands as the Qt client: `sudo docker exec`, `wg/awg syncconf`, and the same file paths.
   - Before changing a driver, check the matching configurator or installer in `client/core/`.
   - Scripts are read from `client/server_scripts`. The backend Docker image is built from the repository root and copies them in.
+  - Drivers exist for AWG, WireGuard, Xray, OpenVPN, SOCKS5, Telemt, MTProxy and IKEv2. Register a new driver in `_MODULES` in `app/drivers/base.py`. `apply()` distinguishes a reversible block from a permanent `revoked` removal.
+  - `Remote.container_exec` uploads the script to a file inside the container before running it, like the Qt client's `runContainerScript`. Do not feed scripts through stdin: tools such as certutil read stdin and would consume the rest of the script.
 - **Jobs.** Jobs are stored in the `jobs` table and run by the in-process worker (`app/jobs/`).
   - All SSH work on one server is serialized by `server_lock` (a PostgreSQL advisory lock).
   - The scheduler only enqueues jobs.

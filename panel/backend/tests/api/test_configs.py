@@ -195,3 +195,18 @@ async def test_new_config_avoids_ips_of_blocked_configs(db, client, admin_token,
     assert f"Address = {ip_first}/32" not in detail["export"]["native"]
     user = (await db.execute(select(User))).scalar_one()
     assert user.max_configs == 3
+
+
+async def test_service_export_has_qr_of_the_link(db, client, admin_token, app, fake_remote, monkeypatch):
+    from app.drivers.base import Rendered, get_driver
+
+    server, _, token = await _setup(db, client, admin_token, app)
+    cfg = (await _create(client, token, server["id"])).json()
+    driver = get_driver(AWG)
+    monkeypatch.setattr(driver, "render", lambda *a, **k: Rendered("", "tg://proxy?server=h&port=1&secret=ee00",
+                                                                   "t.txt"))
+    export = (await client.get(f"/api/me/configs/{cfg['id']}", headers=bearer(token))).json()["export"]
+    assert export["vpn_key"] == "" and export["native"].startswith("tg://")
+    from app.render.qr import qr_svg
+
+    assert export["qr_svg"] == qr_svg("tg://proxy?server=h&port=1&secret=ee00")  # QR of the link, not of ""

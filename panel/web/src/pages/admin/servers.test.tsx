@@ -79,7 +79,12 @@ describe("servers", () => {
 describe("server page", () => {
   function page(s: ServerInfo) {
     adminSession();
-    server.use(http.get("/api/admin/servers/10", () => HttpResponse.json(s)), http.get("/api/admin/servers", () => HttpResponse.json([s])));
+    server.use(
+      http.get("/api/admin/servers/10", () => HttpResponse.json(s)),
+      http.get("/api/admin/servers", () => HttpResponse.json([s])),
+      http.get("/api/admin/servers/installable", () =>
+        HttpResponse.json([{ container: "amnezia-awg2", title: "AmneziaWG" }, { container: "amnezia-xray", title: "XRay" }])),
+    );
   }
 
   it("syncs and toggles availability", async () => {
@@ -128,6 +133,7 @@ describe("server page", () => {
     jobs(["done"]);
     renderApp("/admin/servers/10");
     await userEvent.click(await screen.findByRole("button", { name: "Установить протокол" }));
+    expect(await screen.findByRole("button", { name: "XRay" })).toBeInTheDocument();
     await userEvent.click(await screen.findByRole("button", { name: "AmneziaWG" }));
     await userEvent.click(await screen.findByRole("button", { name: "Да" }));
     await waitFor(() => expect(bodies).toEqual([

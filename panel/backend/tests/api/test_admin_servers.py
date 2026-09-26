@@ -109,3 +109,11 @@ async def test_install_container_enqueues_job(db, client, admin_token, app, fake
 async def test_user_cannot_manage_servers(db, client, fake_remote):
     _, token = await registered_user(db, client)
     assert (await client.get("/api/admin/servers", headers=bearer(token))).status_code == 403
+
+
+async def test_installable_protocols(client, admin_token):
+    r = await client.get("/api/admin/servers/installable", headers=bearer(admin_token))
+    names = {c["container"]: c["title"] for c in r.json()}
+    assert {"amnezia-awg2", "amnezia-wireguard", "amnezia-xray", "amnezia-openvpn", "amnezia-socks5proxy",
+            "amnezia-telemt", "amnezia-mtproxy"} <= set(names)
+    assert "amnezia-ipsec" not in names and names["amnezia-xray"] == "XRay"

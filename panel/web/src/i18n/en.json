@@ -88,7 +88,9 @@
     "native": "Config for AmneziaWG / WireGuard",
     "qr": "QR code for the AmneziaVPN app",
     "how": "Paste the key into the AmneziaVPN app or scan the QR code.",
-    "unavailable": "This config was imported from the server and the panel has no keys for it. It cannot be issued again — create a new one."
+    "unavailable": "This config was imported from the server and the panel has no keys for it. It cannot be issued again — create a new one.",
+    "link": "Connection link",
+    "how_link": "Open the link on your device or scan the QR code."
   },
   "account": {
     "title": "Account",

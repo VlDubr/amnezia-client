@@ -22,9 +22,13 @@ export function ShareModal({ opened, name, data, onClose }: Props) {
       ) : (
         <Stack>
           <Text size="sm" c="dimmed">
-            {t("share.how")}
+            {data.vpn_key ? t("share.how") : t("share.how_link")}
           </Text>
-          <CopyField label={t("share.vpn_key")} value={data.vpn_key} />
+          {data.vpn_key ? (
+            <CopyField label={t("share.vpn_key")} value={data.vpn_key} />
+          ) : (
+            <CopyField label={t("share.link")} value={data.native} />
+          )}
           {qrIsSvg && (
             <Box>
               <Text size="sm" fw={500} mb={4}>
@@ -42,6 +46,7 @@ export function ShareModal({ opened, name, data, onClose }: Props) {
               />
             </Box>
           )}
+          {data.vpn_key && (
           <Box>
             <Group justify="space-between" mb={4}>
               <Text size="sm" fw={500}>
@@ -64,6 +69,7 @@ export function ShareModal({ opened, name, data, onClose }: Props) {
               {data.native}
             </Code>
           </Box>
+          )}
         </Stack>
       )}
     </Modal>

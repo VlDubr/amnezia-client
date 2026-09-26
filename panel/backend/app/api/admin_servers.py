@@ -100,6 +100,12 @@ async def add_server(body: ServerIn, request: Request, admin: AdminDep, db: Db, 
     return _accepted({"server": await server_out(db, server), "job_id": job.id})
 
 
+@router.get("/installable")
+async def installable(_: AdminDep) -> list[dict]:
+    """Protocols the panel can install on a server."""
+    return [{"container": c, "title": get_driver(c).title} for c in sorted(installable_containers())]
+
+
 @router.get("")
 async def list_servers(_: AdminDep, db: Db) -> list[dict]:
     servers = (await db.execute(select(Server).order_by(Server.id))).scalars().all()

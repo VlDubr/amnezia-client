@@ -17,7 +17,26 @@ What users can do:
 
 The panel runs on its own VPS. It manages VPN servers over SSH with the same scripts the AmneziaVPN desktop client uses (`client/server_scripts`), so it works with servers that were set up by the app.
 
-Stage 1 supports **AmneziaWG** (`amnezia-awg2`, legacy `amnezia-awg`) and **WireGuard** (`amnezia-wireguard`). The design is in `docs/superpowers/specs/2026-09-26-amnezia-panel-design.md`.
+The design is in `docs/superpowers/specs/2026-09-26-amnezia-panel-design.md`.
+
+## Supported protocols
+
+| Container | Install from panel | Block / unblock | Traffic | Config issued as |
+|---|---|---|---|---|
+| AmneziaWG (`amnezia-awg2`, legacy `amnezia-awg`) | yes (awg2) | peer removed / re-added | yes | `vpn://` key, `.conf`, QR |
+| WireGuard (`amnezia-wireguard`) | yes | peer removed / re-added | yes | `vpn://` key, `.conf`, QR |
+| XRay VLESS (`amnezia-xray`) | yes (REALITY) | client removed / re-added, Xray restarts | yes (stats API) | `vpn://` key, `vless://` link, QR |
+| OpenVPN (`amnezia-openvpn`) | yes | `ccd` disable / enable; delete revokes into the CRL | yes (per session) | `vpn://` key, `.ovpn`, QR |
+| SOCKS5 (`amnezia-socks5proxy`) | yes (auth always on) | user line removed / re-added | yes (from the 3proxy log) | `socks5://` link, QR |
+| Telemt (`amnezia-telemt`) | yes | user removed / re-added | not available | `tg://proxy` link, QR |
+| MTProxy (`amnezia-mtproxy`) | yes | additional secret removed / re-added (the admin's main secret is not managed) | not available | `tg://proxy` link, QR |
+| IKEv2 (`amnezia-ipsec`) | no, install it from the AmneziaVPN app | serial added to / removed from the CA's CRL; delete also removes the certificate | not available | `vpn://` key, `.mobileconfig` |
+
+Changing the client list of Xray, SOCKS5, Telemt and MTProxy restarts that container, which drops its connections for a moment.
+
+OpenVPN over Cloak or ShadowSocks and ShadowSocks over Xray are not supported: the current AmneziaVPN sources no longer contain server scripts for them.
+
+Imported clients (created outside the panel) can be issued again only when the server holds everything the client needs: Xray, SOCKS5, Telemt and MTProxy clients can be; WireGuard, AmneziaWG, OpenVPN and IKEv2 clients cannot, because their private keys stayed on the client device.
 
 ## Install
 
