@@ -56,7 +56,7 @@ async def reconcile_server(db: AsyncSession, server_id: int, remote_factory: Rem
                 if client_id not in known and client_id not in revoked:
                     cfg = Config(user_id=None, server_id=server_id, container=container,
                                  name=(info.name or f"Imported {client_id[:8]}")[:128], client_id=client_id,
-                                 material_enc=seal(box, info.data))
+                                 material_enc=seal(box, {**info.data, "imported": True}))
                     db.add(cfg)
                     known[client_id] = (cfg, None)
             await db.flush()
@@ -66,10 +66,11 @@ async def reconcile_server(db: AsyncSession, server_id: int, remote_factory: Rem
             desired: list[ClientMaterial] = []
             for client_id, (cfg, user) in known.items():
                 material = unseal(box, cfg.material_enc)
-                if cfg.deleted_at is None and cfg.applied and client_id not in actual and \
-                        not has_private_part(material):
-                    # An imported client the panel cannot re-issue was removed outside the panel
-                    # (for example revoked in the Qt app): keep it removed.
+                outside_owned = (not has_private_part(material) or material.get("imported")
+                                 or cfg.user_id is None)
+                if cfg.deleted_at is None and cfg.applied and client_id not in actual and outside_owned:
+                    # A client that came from the server (imported) and was removed outside the panel, for
+                    # example revoked in the Qt app, stays removed; only panel-issued clients are re-added.
                     cfg.deleted_at = now
                 if is_config_active(cfg.blocked_by, cfg.deleted_at, _user_state(user), now):
                     desired.append(ClientMaterial(client_id, material))

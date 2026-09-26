@@ -52,7 +52,7 @@ async def test_first_import_records_orphans_and_touches_nothing(db, clock):
     configs = (await db.execute(select(Config).order_by(Config.client_id))).scalars().all()
     assert [(c.client_id, c.user_id, c.name) for c in configs] == [("pubA=", None, "Old phone"),
                                                                    ("pubB=", None, "Imported pubB=")]
-    assert unseal(BOX, configs[0].material_enc) == {"ip": "10.8.1.1", "psk": "srvpsk="}
+    assert unseal(BOX, configs[0].material_enc) == {"ip": "10.8.1.1", "psk": "srvpsk=", "imported": True}
     assert peers_on(remote) == {"pubA=", "pubB="}
     assert not [c for _, c in remote.commands if "syncconf" in c]
     server = await db.get(Server, server)
