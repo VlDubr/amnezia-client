@@ -1,0 +1,59 @@
+import { Button, PasswordInput, Stack, TextInput } from "@mantine/core";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
+import { useLocation, useNavigate } from "react-router";
+import { api } from "../api/client";
+import type { Role } from "../api/types";
+import { SESSION_KEY, nextPath } from "../auth/session";
+import { ErrorAlert } from "./ErrorAlert";
+
+/** Sign in for either area; on success the session is refetched and the visitor goes to `next`. */
+export function LoginForm({ role }: { role: Role }) {
+  const { t } = useTranslation();
+  const [login, setLogin] = useState("");
+  const [password, setPassword] = useState("");
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const mutation = useMutation({
+    mutationFn: () => api("/api/auth/login", { method: "POST", body: { login, password, role } }),
+    onSuccess: async () => {
+      queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== SESSION_KEY[0] });
+      await queryClient.invalidateQueries({ queryKey: SESSION_KEY });
+      navigate(nextPath(location.search, role), { replace: true });
+    },
+  });
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    mutation.mutate();
+  }
+
+  return (
+    <form onSubmit={submit}>
+      <Stack>
+        <ErrorAlert error={mutation.error} />
+        <TextInput
+          label={t("auth.login")}
+          value={login}
+          onChange={(e) => setLogin(e.currentTarget.value)}
+          autoComplete="username"
+          required
+          autoFocus
+        />
+        <PasswordInput
+          label={t("auth.password")}
+          value={password}
+          onChange={(e) => setPassword(e.currentTarget.value)}
+          autoComplete="current-password"
+          required
+        />
+        <Button type="submit" loading={mutation.isPending}>
+          {t("auth.sign_in")}
+        </Button>
+      </Stack>
+    </form>
+  );
+}

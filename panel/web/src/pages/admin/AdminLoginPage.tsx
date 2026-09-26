@@ -1,7 +1,12 @@
-import { Title } from "@mantine/core";
 import { useTranslation } from "react-i18next";
+import { AuthLayout } from "../../components/AuthLayout";
+import { LoginForm } from "../../components/LoginForm";
 
 export default function AdminLoginPage() {
   const { t } = useTranslation();
-  return <Title order={2}>{t("auth.admin_login_title")}</Title>;
+  return (
+    <AuthLayout title={t("auth.admin_login_title")}>
+      <LoginForm role="admin" />
+    </AuthLayout>
+  );
 }
