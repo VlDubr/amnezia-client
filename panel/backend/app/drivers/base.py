@@ -79,7 +79,7 @@ class Driver(Protocol):
 
 
 _REGISTRY: dict[str, Driver] = {}
-_MODULES = ("wg", "xray", "openvpn", "socks5")
+_MODULES = ("wg", "xray", "openvpn", "socks5", "telemt")
 
 
 def register(driver: Driver) -> Driver:
