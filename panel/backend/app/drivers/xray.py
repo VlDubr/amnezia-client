@@ -169,6 +169,10 @@ class XrayDriver:
 
     def _client_stream(self, params: dict[str, Any]) -> dict[str, Any]:
         stream = copy.deepcopy(params.get("stream", {}))
+        if "tlsSettings" in stream:
+            # Only what a client needs, as XrayConfigurator::buildStreamSettings: never the server certificates.
+            tls = stream["tlsSettings"]
+            stream["tlsSettings"] = {k: tls[k] for k in ("serverName", "alpn", "fingerprint") if k in tls}
         if stream.get("security") == "reality":
             server = stream.get("realitySettings", {})
             names = server.get("serverNames") or [DEFAULT_SITE]

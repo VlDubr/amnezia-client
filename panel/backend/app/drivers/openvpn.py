@@ -131,6 +131,12 @@ class OpenVpnDriver:
         wanted = {m.client_id for m in desired}
         result = ApplyResult()
         for cn, status in index.items():
+            if status == "R" and cn in revoked and cn in known_ids:
+                # A revoke whose CRL step failed earlier: regenerate the CRL so the certificate is really refused.
+                await self._exec(remote, f"export EASYRSA_BATCH=1; easyrsa gen-crl && cp pki/crl.pem {DATA_DIR}/crl.pem "
+                                         f"&& chmod 644 {DATA_DIR}/crl.pem")
+                result.removed.add(cn)
+                continue
             if status != "V" or cn not in known_ids:
                 continue
             q = shlex.quote(cn)
@@ -155,6 +161,7 @@ class OpenVpnDriver:
             self.container, f"cat /openvpn-status.log 2>/dev/null || cat {DATA_DIR}/openvpn-status.log 2>/dev/null "
                             "|| true")
         counters: dict[str, Counter] = {}
+        sessions: dict[str, list[str]] = {}
         in_list = False
         for line in out.splitlines():
             if line.startswith("Common Name,Real Address"):
@@ -165,7 +172,14 @@ class OpenVpnDriver:
             if in_list:
                 fields = line.split(",")
                 if len(fields) >= 5 and fields[2].isdigit() and fields[3].isdigit():
-                    counters[fields[0]] = Counter(int(fields[2]), int(fields[3]), fields[4])
+                    # duplicate-cn: several devices may share one config; sum them, and key the session on
+                    # the set of connections so that row order does not matter.
+                    sessions.setdefault(fields[0], []).append(f"{fields[1]}@{fields[4]}")
+                    c = counters.setdefault(fields[0], Counter(0, 0, None))
+                    c.rx += int(fields[2])
+                    c.tx += int(fields[3])
+        for cn, parts in sessions.items():
+            counters[cn].session = "|".join(sorted(parts))
         return counters
 
     def render(self, material: ClientMaterial, params: dict[str, Any], host: str, dns: tuple[str, str],

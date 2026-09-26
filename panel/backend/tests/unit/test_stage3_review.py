@@ -94,3 +94,46 @@ async def test_telemt_keeps_lines_it_does_not_manage():
     out = r.files[(TM, CFG)]
     assert "# admin note" in out and f'"my-proxy" = "{SECRET}"' in out and f'my-proxy2 = "{SECRET}"' in out
     assert f'p1 = "{"a" * 32}"' in out
+
+
+async def test_openvpn_sums_devices_sharing_a_config():
+    from app.drivers.base import get_driver
+    from tests.unit.test_openvpn_driver import OVPN, ovpn_remote
+
+    r = ovpn_remote()
+    header = ("OpenVPN CLIENT LIST\nUpdated,x\nCommon Name,Real Address,Bytes Received,Bytes Sent,Connected Since\n")
+    r.outputs["openvpn-status.log"] = header + (
+        "oldphone,1.1.1.1:1,100,1000,2026-09-26 10:00:00\noldphone,2.2.2.2:2,10,20,2026-09-26 11:00:00\nROUTING TABLE\n")
+    first = (await get_driver(OVPN).read_traffic(r))["oldphone"]
+    assert (first.rx, first.tx) == (110, 1020)
+    r.outputs["openvpn-status.log"] = header + (
+        "oldphone,2.2.2.2:2,10,20,2026-09-26 11:00:00\noldphone,1.1.1.1:1,100,1000,2026-09-26 10:00:00\nROUTING TABLE\n")
+    again = (await get_driver(OVPN).read_traffic(r))["oldphone"]
+    assert again.session == first.session  # row order does not change the session
+
+
+async def test_openvpn_retries_crl_after_a_partial_revoke():
+    from app.drivers.base import get_driver
+    from tests.unit.test_openvpn_driver import D, OVPN, ovpn_remote
+
+    r = ovpn_remote()
+    r.files[(OVPN, f"{D}/pki/index.txt")] += "R\t360101000000Z\t260101000000Z\t09\tunknown\t/CN=halfdone\n"
+    await get_driver(OVPN).apply(r, [], {"halfdone"}, revoked={"halfdone"})
+    assert any("easyrsa gen-crl" in c for w, c in r.commands if w == OVPN)
+
+
+async def test_xray_tls_client_config_does_not_carry_server_certificates():
+    import copy
+
+    from app.drivers.base import ClientMaterial, get_driver
+    from app.render.vpnkey import decode_vpn_key
+
+    conf = copy.deepcopy(SERVER_JSON)
+    conf["inbounds"][0]["streamSettings"] = {"network": "tcp", "security": "tls", "tlsSettings": {
+        "serverName": "vpn.example.com", "alpn": ["h2"], "fingerprint": "chrome",
+        "certificates": [{"certificateFile": "/etc/x.crt", "keyFile": "/etc/x.key", "key": ["SECRET-KEY"]}]}}
+    r = xray_remote(conf)
+    d = get_driver(XRAY)
+    out = d.render(ClientMaterial(UUID_A, {"secret": UUID_A}), await d.read_params(r), "h", ("", ""), "x")
+    text = decode_vpn_key(out.vpn_key)["containers"][0]["xray"]["last_config"]
+    assert "SECRET-KEY" not in text and "certificates" not in text and "vpn.example.com" in text

@@ -114,7 +114,7 @@ async def test_read_traffic_from_status_log():
         "ROUTING TABLE\nVirtual Address,Common Name,Real Address,Last Ref\nGLOBAL STATS\nEND\n")
     traffic = await get_driver(OVPN).read_traffic(remote)
     c = traffic["oldphone"]
-    assert (c.rx, c.tx, c.session) == (1000, 20000, "2026-09-26 11:00:00")
+    assert (c.rx, c.tx, c.session) == (1000, 20000, "198.51.100.7:40000@2026-09-26 11:00:00")
 
 
 async def test_render_ovpn_and_vpn_key():
