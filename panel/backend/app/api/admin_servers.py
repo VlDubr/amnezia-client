@@ -14,6 +14,7 @@ from app.errors import ApiError
 from app.jobs.queue import enqueue
 from app.services.install import INSTALLABLE
 from app.services.servers import seal_ssh_secret
+from app.services.sync import enqueue_server_sync
 from app.ssh.conn import RemoteError
 
 router = APIRouter(prefix="/api/admin/servers", tags=["admin"])
@@ -82,10 +83,6 @@ def _accepted(body: dict) -> JSONResponse:
     return JSONResponse(status_code=202, content=body)
 
 
-async def enqueue_sync(db: AsyncSession, server_id: int, kind: str = "reconcile"):
-    return await enqueue(db, kind, server_id=server_id, dedupe_key=f"sync:{server_id}")
-
-
 @router.post("", status_code=202)
 async def add_server(body: ServerIn, request: Request, admin: AdminDep, db: Db, box: SecretBoxDep):
     if not body.ssh_password and not body.ssh_private_key:
@@ -96,7 +93,7 @@ async def add_server(body: ServerIn, request: Request, admin: AdminDep, db: Db, 
                     enabled_for_users=body.enabled_for_users)
     db.add(server)
     await db.flush()
-    job = await enqueue_sync(db, server.id, "server_import")
+    job = await enqueue_server_sync(db, server.id, "server_import")
     audit(db, admin.actor, "server_add", f"server:{server.id}", host=body.host)
     await db.commit()
     return _accepted({"server": await server_out(db, server), "job_id": job.id})
@@ -140,7 +137,7 @@ async def delete_server(server_id: int, admin: AdminDep, db: Db) -> Response:
 @router.post("/{server_id}/sync", status_code=202)
 async def sync_server(server_id: int, admin: AdminDep, db: Db):
     await _get(db, server_id)
-    job = await enqueue_sync(db, server_id)
+    job = await enqueue_server_sync(db, server_id)
     await db.commit()
     return _accepted({"job_id": job.id})
 
@@ -150,7 +147,7 @@ async def accept_host_key(server_id: int, request: Request, admin: AdminDep, db:
     server = await _get(db, server_id)
     server.host_key = await _fetch_host_key(request, server.host, server.ssh_port)
     server.last_error = None
-    job = await enqueue_sync(db, server_id)
+    job = await enqueue_server_sync(db, server_id)
     audit(db, admin.actor, "server_host_key_accept", f"server:{server_id}", host_key=server.host_key)
     await db.commit()
     return _accepted({"host_key": server.host_key, "job_id": job.id})

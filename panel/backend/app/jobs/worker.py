@@ -64,7 +64,7 @@ class Worker:
             await self._slots.acquire()
             try:
                 job = await self._claim()
-            except Exception:  # noqa: BLE001 - keep the worker alive when the database blips
+            except Exception:
                 log.exception("claiming a job failed")
                 job = None
             if job is None:
