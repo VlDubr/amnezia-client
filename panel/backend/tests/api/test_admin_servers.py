@@ -91,7 +91,7 @@ async def test_host_key_change_fails_job_until_accepted(db, client, admin_token,
 
 async def test_install_container_validates_type(client, admin_token, app, fake_remote):
     s = await add_server(client, admin_token, app)
-    r = await client.post(f"/api/admin/servers/{s['id']}/containers", json={"container": "amnezia-xray"},
+    r = await client.post(f"/api/admin/servers/{s['id']}/containers", json={"container": "amnezia-sftp"},
                           headers=bearer(admin_token))
     assert r.status_code == 422 and r.json()["code"] == "unsupported_container"
 
