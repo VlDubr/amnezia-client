@@ -68,3 +68,10 @@ async def test_render_links():
                      "x")
     q = dict(urllib.parse.parse_qsl(urllib.parse.urlparse(plain.native).query))
     assert q == {"server": "tg.example", "port": "8443", "secret": "dd" + SECRET} and plain.vpn_key == ""
+
+
+async def test_link_uses_the_public_port_behind_nat():
+    toml = TOML.replace("[server]\n", '[general.links]\nshow = "*"\npublic_port = 8443\n\n[server]\n', 1)
+    assert "public_port" in toml
+    params = await get_driver("amnezia-telemt").read_params(remote(toml))
+    assert params["port"] == "8443"

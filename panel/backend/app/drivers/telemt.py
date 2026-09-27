@@ -56,7 +56,9 @@ class TelemtDriver:
     async def read_params(self, remote: Remote) -> dict[str, Any]:
         lines = await self._lines(remote)
         return {
-            "port": _value(lines, "server", "port") or self.default_port,
+            # Links advertise public_port (it differs from the listen port behind NAT or a port forward).
+            "port": (_value(lines, "general.links", "public_port") or _value(lines, "server", "port")
+                     or self.default_port),
             "tls": (_value(lines, "general.modes", "tls") or "false") == "true",
             "tls_domain": _value(lines, "censorship", "tls_domain") or "",
             "public_host": _value(lines, "general.links", "public_host") or "",
