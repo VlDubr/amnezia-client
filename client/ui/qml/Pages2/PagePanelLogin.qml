@@ -15,6 +15,11 @@ import "../Components"
 PageType {
     id: root
 
+    // What the last sign-in used, to repeat it once the admin trusts the panel's certificate.
+    property string pendingUrl
+    property string pendingLogin
+    property string pendingPassword
+
     Connections {
         target: PanelController
 
@@ -24,6 +29,26 @@ PageType {
                 PageController.closePage()
                 PageController.goToPage(PageEnum.PagePanelUsers)
             }
+        }
+
+        function onCertificateUntrusted(sha256, changed) {
+            if (root.StackView.status !== StackView.Active) {
+                return
+            }
+            var text = changed
+                    ? qsTr("The panel's certificate has changed since the last sign-in. If you did not replace it on "
+                           + "the server, do not continue: someone may be intercepting the connection.")
+                    : qsTr("The panel uses a self-signed certificate. Continue only if its SHA-256 fingerprint "
+                           + "matches the one gen-self-signed-cert.sh printed on the server.")
+            showQuestionDrawer(qsTr("Check the panel's certificate"), text + "
+
+" + sha256,
+                               qsTr("Trust and sign in"), qsTr("Cancel"),
+                               function() {
+                                   PanelController.signIn(root.pendingUrl, root.pendingLogin, root.pendingPassword,
+                                                          sha256)
+                               },
+                               function() { root.pendingPassword = "" })
         }
 
         function onErrorTextChanged() {
@@ -107,8 +132,10 @@ PageType {
                 text: qsTr("Sign in")
 
                 clickedFunc: function() {
-                    PanelController.signIn(urlField.textField.text, loginField.textField.text,
-                                           passwordField.textField.text)
+                    root.pendingUrl = urlField.textField.text
+                    root.pendingLogin = loginField.textField.text
+                    root.pendingPassword = passwordField.textField.text
+                    PanelController.signIn(root.pendingUrl, root.pendingLogin, root.pendingPassword)
                 }
             }
         }

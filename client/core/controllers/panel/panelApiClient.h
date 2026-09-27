@@ -24,6 +24,8 @@ public:
         QJsonDocument body;
         QString errorCode; // empty on success
         QString errorMessage;
+        // With errorCode "untrusted_certificate" or "certificate_changed": SHA-256 of the certificate presented
+        QString certSha256;
 
         bool ok() const { return errorCode.isEmpty(); }
     };
@@ -35,7 +37,9 @@ public:
     QString baseUrl() const;
     bool hasToken() const;
 
-    void signIn(const QString &url, const QString &login, const QString &password, const Callback &done);
+    // trustedCertSha256: a self-signed certificate the admin has just confirmed; it is kept after a successful sign-in.
+    void signIn(const QString &url, const QString &login, const QString &password, const QString &trustedCertSha256,
+                const Callback &done);
     void signOut();
 
     void get(const QString &path, const Callback &done);
@@ -49,8 +53,8 @@ signals:
 
 private:
     void send(const QByteArray &method, const QString &path, const QJsonObject *body, const Callback &done);
-    void sendTo(const QString &base, const QString &token, const QByteArray &method, const QString &path,
-                const QJsonObject *body, const Callback &done);
+    void sendTo(const QString &base, const QString &token, const QString &pinnedCertSha256, const QByteArray &method,
+                const QString &path, const QJsonObject *body, const Callback &done);
 
     SecureAppSettingsRepository *m_appSettings;
     QNetworkAccessManager *m_network;

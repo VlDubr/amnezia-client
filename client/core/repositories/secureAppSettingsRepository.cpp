@@ -304,6 +304,16 @@ void SecureAppSettingsRepository::setPanelToken(const QString &token)
     setValue("Conf/panelToken", token);
 }
 
+QString SecureAppSettingsRepository::panelCertSha256() const
+{
+    return value("Conf/panelCertSha256").toString();
+}
+
+void SecureAppSettingsRepository::setPanelCertSha256(const QString &sha256)
+{
+    setValue("Conf/panelCertSha256", sha256);
+}
+
 void SecureAppSettingsRepository::resetGatewayEndpoint()
 {
     m_gatewayEndpoint = gatewayEndpoint;

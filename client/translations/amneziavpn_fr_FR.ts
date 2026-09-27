@@ -607,6 +607,26 @@ Des conteneurs déjà installés ont été trouvés sur le serveur. Tous les con
         <source>Sign in</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelLogin.qml" line="39"/>
+        <source>The panel&apos;s certificate has changed since the last sign-in. If you did not replace it on the server, do not continue: someone may be intercepting the connection.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelLogin.qml" line="41"/>
+        <source>The panel uses a self-signed certificate. Continue only if its SHA-256 fingerprint matches the one gen-self-signed-cert.sh printed on the server.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelLogin.qml" line="43"/>
+        <source>Check the panel&apos;s certificate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelLogin.qml" line="46"/>
+        <source>Trust and sign in</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>PagePanelUser</name>
@@ -6046,6 +6066,16 @@ Créez-en une à partir des paramètres actuels.</translation>
     <message>
         <location filename="../ui/controllers/panel/panelUiController.cpp" line="33"/>
         <source>No connection to the panel: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/panel/panelUiController.cpp" line="29"/>
+        <source>The panel&apos;s certificate is not trusted. Sign out and sign in again to check it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/panel/panelUiController.cpp" line="32"/>
+        <source>The panel&apos;s certificate has changed. If you did not replace it on the server, someone may be intercepting the connection. Sign out and sign in again to trust the new one.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

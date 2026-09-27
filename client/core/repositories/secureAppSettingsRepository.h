@@ -65,6 +65,9 @@ public:
     void setPanelUrl(const QString &url);
     QString panelToken() const;
     void setPanelToken(const QString &token);
+    // SHA-256 of the panel's self-signed certificate the admin chose to trust (empty for a public certificate)
+    QString panelCertSha256() const;
+    void setPanelCertSha256(const QString &sha256);
     void resetGatewayEndpoint();
     void setDevGatewayEndpoint();
     bool isDevGatewayEnv(bool isTestPurchase = false) const;

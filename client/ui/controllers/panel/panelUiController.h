@@ -35,7 +35,9 @@ public:
     QVariantMap share() const { return m_share; }
 
 public slots:
-    void signIn(const QString &url, const QString &login, const QString &password);
+    // trustedCertSha256: the fingerprint the admin confirmed after certificateUntrusted
+    void signIn(const QString &url, const QString &login, const QString &password,
+                const QString &trustedCertSha256 = QString());
     void signOut();
     void clearError();
     void clearInviteKey();
@@ -66,6 +68,8 @@ signals:
     void inviteKeyChanged();
     void shareChanged();
     void userDeleted();
+    // Sign-in met a certificate the system does not trust; changed = it differs from the one trusted before.
+    void certificateUntrusted(const QString &sha256, bool changed);
 
 private:
     PanelApiClient::Callback handle(const std::function<void(const PanelApiClient::Result &)> &onSuccess);

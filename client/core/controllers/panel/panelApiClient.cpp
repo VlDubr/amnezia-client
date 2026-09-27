@@ -1,9 +1,15 @@
 #include "panelApiClient.h"
 
+#include <QCryptographicHash>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QSslCertificate>
+#include <QSslConfiguration>
+#include <QSslError>
 #include <QUrl>
+
+#include <memory>
 
 #include "core/repositories/secureAppSettingsRepository.h"
 
@@ -34,6 +40,12 @@ namespace
         const QString host = parsed.host();
         return host != QLatin1String("localhost") && host != QLatin1String("127.0.0.1") && host != QLatin1String("::1");
     }
+
+    // Same form as `openssl x509 -fingerprint -sha256` prints, so the admin can compare them by eye.
+    QString sha256Of(const QSslCertificate &certificate)
+    {
+        return QString::fromLatin1(certificate.digest(QCryptographicHash::Sha256).toHex(':').toUpper());
+    }
 } // namespace
 
 PanelApiClient::PanelApiClient(SecureAppSettingsRepository *appSettings, QNetworkAccessManager *network,
@@ -52,7 +64,8 @@ bool PanelApiClient::hasToken() const
     return !m_appSettings->panelToken().isEmpty();
 }
 
-void PanelApiClient::signIn(const QString &url, const QString &login, const QString &password, const Callback &done)
+void PanelApiClient::signIn(const QString &url, const QString &login, const QString &password,
+                            const QString &trustedCertSha256, const Callback &done)
 {
     const QString base = normalizedBaseUrl(url);
     if (isInsecureRemote(base)) {
@@ -65,7 +78,11 @@ void PanelApiClient::signIn(const QString &url, const QString &login, const QStr
     QJsonObject body { { "login", login }, { "password", password } };
     // The address and the token are stored only after a successful sign-in, so a mistyped address does not
     // sign the admin out of a working panel.
-    sendTo(base, QString(), "POST", "/api/auth/login", &body, [this, base, done](const Result &result) {
+    // A certificate trusted earlier stays trusted only for the same address.
+    const QString pin = !trustedCertSha256.isEmpty() ? trustedCertSha256
+            : base == baseUrl() ? m_appSettings->panelCertSha256()
+                                : QString();
+    sendTo(base, QString(), pin, "POST", "/api/auth/login", &body, [this, base, pin, done](const Result &result) {
         if (!result.ok()) {
             done(result);
             return;
@@ -74,7 +91,7 @@ void PanelApiClient::signIn(const QString &url, const QString &login, const QStr
         const QString token = session.value("token").toString();
         if (session.value("role").toString() != QLatin1String("admin")) {
             // A user account: close the session it just opened and refuse.
-            sendTo(base, token, "POST", "/api/auth/logout", nullptr, [](const Result &) {});
+            sendTo(base, token, pin, "POST", "/api/auth/logout", nullptr, [](const Result &) {});
             Result refused;
             refused.status = 403;
             refused.errorCode = QStringLiteral("forbidden");
@@ -83,6 +100,7 @@ void PanelApiClient::signIn(const QString &url, const QString &login, const QStr
         }
         m_appSettings->setPanelUrl(base);
         m_appSettings->setPanelToken(token);
+        m_appSettings->setPanelCertSha256(pin);
         done(result);
     });
 }
@@ -117,11 +135,12 @@ void PanelApiClient::remove(const QString &path, const Callback &done)
 
 void PanelApiClient::send(const QByteArray &method, const QString &path, const QJsonObject *body, const Callback &done)
 {
-    sendTo(baseUrl(), m_appSettings->panelToken(), method, path, body, done);
+    sendTo(baseUrl(), m_appSettings->panelToken(), m_appSettings->panelCertSha256(), method, path, body, done);
 }
 
-void PanelApiClient::sendTo(const QString &base, const QString &token, const QByteArray &method, const QString &path,
-                            const QJsonObject *body, const Callback &done)
+void PanelApiClient::sendTo(const QString &base, const QString &token, const QString &pinnedCertSha256,
+                            const QByteArray &method, const QString &path, const QJsonObject *body,
+                            const Callback &done)
 {
     QNetworkRequest request(QUrl(base + path));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -133,15 +152,34 @@ void PanelApiClient::sendTo(const QString &base, const QString &token, const QBy
     const QByteArray payload = body ? QJsonDocument(*body).toJson(QJsonDocument::Compact) : QByteArray();
     QNetworkReply *reply = m_network->sendCustomRequest(request, method, payload);
 
+    // A certificate that fails the system checks is accepted only if it is exactly the one the admin trusted.
+    auto rejectedCert = std::make_shared<QString>();
+    const auto onSslErrors = [reply, pinnedCertSha256, rejectedCert](const QList<QSslError> &errors) {
+        const QString presented = sha256Of(reply->sslConfiguration().peerCertificate());
+        if (!pinnedCertSha256.isEmpty() && presented == pinnedCertSha256) {
+            reply->ignoreSslErrors(errors);
+            return;
+        }
+        *rejectedCert = presented;
+    };
+    connect(reply, &QNetworkReply::sslErrors, this, onSslErrors);
+
     const bool withToken = !token.isEmpty();
-    connect(reply, &QNetworkReply::finished, this, [this, reply, done, withToken]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, done, withToken, pinnedCertSha256, rejectedCert]() {
         reply->deleteLater();
         Result result;
         result.status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         const QByteArray data = reply->readAll();
         result.body = QJsonDocument::fromJson(data);
 
-        if (result.status == 0) {
+        if (result.status == 0 && !rejectedCert->isEmpty()) {
+            // Not trusted by the system: either a self-signed certificate seen for the first time, or a different
+            // certificate than the trusted one, which may mean the connection is being intercepted.
+            result.errorCode = pinnedCertSha256.isEmpty() ? QStringLiteral("untrusted_certificate")
+                                                          : QStringLiteral("certificate_changed");
+            result.errorMessage = reply->errorString();
+            result.certSha256 = *rejectedCert;
+        } else if (result.status == 0) {
             result.errorCode = QStringLiteral("network");
             result.errorMessage = reply->errorString();
         } else if (result.status >= 400) {

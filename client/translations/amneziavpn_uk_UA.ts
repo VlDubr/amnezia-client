@@ -607,6 +607,26 @@ Already installed containers were found on the server. All installed containers 
         <source>Sign in</source>
         <translation>Увійти</translation>
     </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelLogin.qml" line="39"/>
+        <source>The panel&apos;s certificate has changed since the last sign-in. If you did not replace it on the server, do not continue: someone may be intercepting the connection.</source>
+        <translation>Сертифікат панелі змінився з останнього входу. Якщо ви не змінювали його на сервері, не продовжуйте: з&apos;єднання може перехоплюватися.</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelLogin.qml" line="41"/>
+        <source>The panel uses a self-signed certificate. Continue only if its SHA-256 fingerprint matches the one gen-self-signed-cert.sh printed on the server.</source>
+        <translation>Панель використовує самопідписаний сертифікат. Продовжуйте, лише якщо його відбиток SHA-256 збігається з тим, який вивів gen-self-signed-cert.sh на сервері.</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelLogin.qml" line="43"/>
+        <source>Check the panel&apos;s certificate</source>
+        <translation>Перевірте сертифікат панелі</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelLogin.qml" line="46"/>
+        <source>Trust and sign in</source>
+        <translation>Довіряти й увійти</translation>
+    </message>
 </context>
 <context>
     <name>PagePanelUser</name>
@@ -6050,6 +6070,16 @@ Create one from the current settings.</source>
         <location filename="../ui/controllers/panel/panelUiController.cpp" line="33"/>
         <source>No connection to the panel: %1</source>
         <translation>Немає зв&apos;язку з панеллю: %1</translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/panel/panelUiController.cpp" line="29"/>
+        <source>The panel&apos;s certificate is not trusted. Sign out and sign in again to check it.</source>
+        <translation>Сертифікату панелі немає довіри. Вийдіть і увійдіть знову, щоб перевірити його.</translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/panel/panelUiController.cpp" line="32"/>
+        <source>The panel&apos;s certificate has changed. If you did not replace it on the server, someone may be intercepting the connection. Sign out and sign in again to trust the new one.</source>
+        <translation>Сертифікат панелі змінився. Якщо ви не змінювали його на сервері, з&apos;єднання може перехоплюватися. Вийдіть і увійдіть знову, щоб довіряти новому сертифікату.</translation>
     </message>
 </context>
 <context>

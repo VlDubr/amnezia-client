@@ -24,6 +24,14 @@ namespace
             { "not_found", QT_TRANSLATE_NOOP("PanelUiController", "Not found") },
             { "forbidden", QT_TRANSLATE_NOOP("PanelUiController", "Administrator sign-in required") },
             { "unauthorized", QT_TRANSLATE_NOOP("PanelUiController", "Administrator sign-in required") },
+            { "untrusted_certificate",
+              QT_TRANSLATE_NOOP("PanelUiController",
+                                "The panel's certificate is not trusted. Sign out and sign in again to check it.") },
+            { "certificate_changed",
+              QT_TRANSLATE_NOOP("PanelUiController",
+                                "The panel's certificate has changed. If you did not replace it on the server, "
+                                "someone may be intercepting the connection. Sign out and sign in again to trust "
+                                "the new one.") },
             { "insecure_url",
               QT_TRANSLATE_NOOP("PanelUiController",
                                 "Use an https:// address: http:// sends the password unencrypted") },
@@ -103,10 +111,24 @@ PanelApiClient::Callback PanelUiController::handle(const std::function<void(cons
     };
 }
 
-void PanelUiController::signIn(const QString &url, const QString &login, const QString &password)
+void PanelUiController::signIn(const QString &url, const QString &login, const QString &password,
+                               const QString &trustedCertSha256)
 {
     clearError();
-    m_api->signIn(url, login, password, handle([this](const PanelApiClient::Result &) { emit signedInChanged(); }));
+    setBusy(true);
+    m_api->signIn(url, login, password, trustedCertSha256, [this](const PanelApiClient::Result &result) {
+        setBusy(false);
+        const bool changed = result.errorCode == QLatin1String("certificate_changed");
+        if (changed || result.errorCode == QLatin1String("untrusted_certificate")) {
+            emit certificateUntrusted(result.certSha256, changed); // the page asks the admin to compare it
+            return;
+        }
+        if (!result.ok()) {
+            setError(result);
+            return;
+        }
+        emit signedInChanged();
+    });
 }
 
 void PanelUiController::signOut()
