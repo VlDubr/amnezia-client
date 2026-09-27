@@ -576,6 +576,330 @@ Already installed containers were found on the server. All installed containers 
     </message>
 </context>
 <context>
+    <name>PagePanelLogin</name>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelLogin.qml" line="64"/>
+        <source>Amnezia Panel</source>
+        <translation>Amnezia Panel</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelLogin.qml" line="65"/>
+        <source>Manage panel users and their configs. Sign in as a panel administrator.</source>
+        <translation>Керування користувачами панелі та їхніми конфігураціями. Увійдіть як адміністратор панелі.</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelLogin.qml" line="75"/>
+        <source>Panel address</source>
+        <translation>Адреса панелі</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelLogin.qml" line="87"/>
+        <source>Login</source>
+        <translation>Логін</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelLogin.qml" line="97"/>
+        <source>Password</source>
+        <translation>Пароль</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelLogin.qml" line="107"/>
+        <source>Sign in</source>
+        <translation>Увійти</translation>
+    </message>
+</context>
+<context>
+    <name>PagePanelUser</name>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="30"/>
+        <source>Being removed</source>
+        <translation>Видаляється</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="31"/>
+        <source>Blocked by user</source>
+        <translation>Заблоковано користувачем</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="31"/>
+        <source>Blocked</source>
+        <translation>Заблоковано</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="32"/>
+        <source>Inactive</source>
+        <translation>Неактивний</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="33"/>
+        <source>Active</source>
+        <translation>Активний</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="38"/>
+        <source>Expired</source>
+        <translation>Термін минув</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="66"/>
+        <source>This imported config cannot be issued again</source>
+        <translation>Цей імпортований конфіг не можна видати повторно</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="75"/>
+        <source>Invite key</source>
+        <translation>Ключ запрошення</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="75"/>
+        <source>The key is shown only once.</source>
+        <translation>Ключ показується лише один раз.</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="76"/>
+        <source>Copy</source>
+        <translation>Копіювати</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="76"/>
+        <source>Close</source>
+        <translation>Закрити</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="114"/>
+        <source>Registered: </source>
+        <translation>Зареєстровано: </translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="115"/>
+        <source>Not registered yet</source>
+        <translation>Ще не зареєстровано</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="116"/>
+        <source>Downloaded: </source>
+        <translation>Завантажено: </translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="117"/>
+        <source>Uploaded: </source>
+        <translation>Відправлено: </translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="136"/>
+        <source>Config limit</source>
+        <translation>Ліміт конфігів</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="146"/>
+        <source>Last day of access (YYYY-MM-DD, empty for none)</source>
+        <translation>Останній день доступу (РРРР-ММ-ДД, порожньо — без терміну)</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="158"/>
+        <source>Save</source>
+        <translation>Зберегти</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="172"/>
+        <source>Unblock user</source>
+        <translation>Розблокувати користувача</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="172"/>
+        <source>Block user</source>
+        <translation>Заблокувати користувача</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="178"/>
+        <source>Block %1?</source>
+        <translation>Заблокувати %1?</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="179"/>
+        <source>All configs of the user stop working but are kept.</source>
+        <translation>Усі конфіги користувача перестануть працювати, але збережуться.</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="180"/>
+        <source>Block</source>
+        <translation>Заблокувати</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="180"/>
+        <source>Cancel</source>
+        <translation>Скасувати</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="192"/>
+        <source>Issue a new invite key</source>
+        <translation>Випустити новий ключ запрошення</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="194"/>
+        <source>Issue a new invite key?</source>
+        <translation>Випустити новий ключ запрошення?</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="194"/>
+        <source>The old key will stop working.</source>
+        <translation>Старий ключ перестане працювати.</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="195"/>
+        <source>Continue</source>
+        <translation>Продовжити</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="206"/>
+        <source>Delete user</source>
+        <translation>Видалити користувача</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="208"/>
+        <source>Delete %1 and all configs?</source>
+        <translation>Видалити %1 та всі конфіги?</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="209"/>
+        <source>This cannot be undone.</source>
+        <translation>Цю дію не можна скасувати.</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="209"/>
+        <source>Delete</source>
+        <translation>Видалити</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="219"/>
+        <source>Configs</source>
+        <translation>Конфіги</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="226"/>
+        <source>Issue a config</source>
+        <translation>Видати конфіг</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="280"/>
+        <source>Unblock config</source>
+        <translation>Розблокувати конфіг</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="280"/>
+        <source>Block config</source>
+        <translation>Заблокувати конфіг</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="288"/>
+        <source>The config stops working but is kept.</source>
+        <translation>Конфіг перестане працювати, але збережеться.</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="298"/>
+        <source>Delete config</source>
+        <translation>Видалити конфіг</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="301"/>
+        <source>Delete %1?</source>
+        <translation>Видалити %1?</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="301"/>
+        <source>The config stops working.</source>
+        <translation>Конфіг перестане працювати.</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="376"/>
+        <source>Copied</source>
+        <translation>Скопійовано</translation>
+    </message>
+</context>
+<context>
+    <name>PagePanelUsers</name>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUsers.qml" line="21"/>
+        <source>Blocked</source>
+        <translation>Заблоковано</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUsers.qml" line="22"/>
+        <source>Expired</source>
+        <translation>Термін минув</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUsers.qml" line="23"/>
+        <source>Being removed</source>
+        <translation>Видаляється</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUsers.qml" line="24"/>
+        <source>Active</source>
+        <translation>Активний</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUsers.qml" line="50"/>
+        <source>Invite key</source>
+        <translation>Ключ запрошення</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUsers.qml" line="51"/>
+        <source>The key is shown only once. Copy it and send it to the user.</source>
+        <translation>Ключ показується лише один раз. Скопіюйте його та надішліть користувачу.</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUsers.qml" line="52"/>
+        <source>Copy</source>
+        <translation>Копіювати</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUsers.qml" line="52"/>
+        <source>Close</source>
+        <translation>Закрити</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUsers.qml" line="85"/>
+        <source>Panel users</source>
+        <translation>Користувачі панелі</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUsers.qml" line="96"/>
+        <source>Search</source>
+        <translation>Пошук</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUsers.qml" line="106"/>
+        <source>New user</source>
+        <translation>Новий користувач</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUsers.qml" line="120"/>
+        <source>Name</source>
+        <translation>Ім&apos;я</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUsers.qml" line="126"/>
+        <source>Config limit</source>
+        <translation>Ліміт конфігів</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUsers.qml" line="134"/>
+        <source>Last day of access (YYYY-MM-DD, empty for none)</source>
+        <translation>Останній день доступу (РРРР-ММ-ДД, порожньо — без терміну)</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUsers.qml" line="142"/>
+        <source>Create</source>
+        <translation>Створити</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUsers.qml" line="158"/>
+        <source>Sign out of the panel</source>
+        <translation>Вийти з панелі</translation>
+    </message>
+</context>
+<context>
     <name>PageProtocolAwgClientSettings</name>
     <message>
         <location filename="../ui/qml/Pages2/PageProtocolAwgClientSettings.qml" line="56"/>
@@ -3210,6 +3534,11 @@ Create one from the current settings.</source>
         <source>Dev console</source>
         <translation>Консоль розробника</translation>
     </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PageSettings.qml" line="178"/>
+        <source>Amnezia Panel</source>
+        <translation>Amnezia Panel</translation>
+    </message>
 </context>
 <context>
     <name>PageSettingsAbout</name>
@@ -5648,6 +5977,79 @@ Create one from the current settings.</source>
         <location filename="../ui/qml/Pages2/PageStart.qml" line="217"/>
         <source>Logging is enabled. Note that logs will be automaticallydisabled after 14 days, and all log files will be deleted.</source>
         <translation>Логування увімкнено. Зверніть увагу: через 14 днів воно автоматично вимкнеться, а всі файли логів буде видалено.</translation>
+    </message>
+</context>
+<context>
+    <name>PanelUiController</name>
+    <message>
+        <location filename="../ui/controllers/panel/panelUiController.cpp" line="12"/>
+        <source>Wrong login or password</source>
+        <translation>Неправильний логін або пароль</translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/panel/panelUiController.cpp" line="13"/>
+        <source>Too many attempts. Wait a bit and try again.</source>
+        <translation>Забагато спроб. Зачекайте і спробуйте знову.</translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/panel/panelUiController.cpp" line="14"/>
+        <source>Config limit reached</source>
+        <translation>Досягнуто ліміту конфігів</translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/panel/panelUiController.cpp" line="16"/>
+        <source>The server does not respond. Try again later.</source>
+        <translation>Сервер не відповідає. Спробуйте пізніше.</translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/panel/panelUiController.cpp" line="17"/>
+        <source>The server has no room for another config</source>
+        <translation>На сервері немає місця для нового конфігу</translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/panel/panelUiController.cpp" line="19"/>
+        <source>This protocol is not installed on the server</source>
+        <translation>Цей протокол не встановлено на сервері</translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/panel/panelUiController.cpp" line="20"/>
+        <source>Check the entered values</source>
+        <translation>Перевірте введені значення</translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/panel/panelUiController.cpp" line="21"/>
+        <source>Access is blocked</source>
+        <translation>Доступ заблоковано</translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/panel/panelUiController.cpp" line="22"/>
+        <source>Access period has ended</source>
+        <translation>Термін доступу минув</translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/panel/panelUiController.cpp" line="23"/>
+        <source>The user has already registered</source>
+        <translation>Користувач уже зареєструвався</translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/panel/panelUiController.cpp" line="24"/>
+        <source>Not found</source>
+        <translation>Не знайдено</translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/panel/panelUiController.cpp" line="25"/>
+        <source>Administrator sign-in required</source>
+        <translation>Потрібен вхід адміністратора</translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/panel/panelUiController.cpp" line="28"/>
+        <source>Use an https:// address: http:// sends the password unencrypted</source>
+        <translation>Використовуйте адресу https://: через http:// пароль передається без шифрування</translation>
+    </message>
+    <message>
+        <location filename="../ui/controllers/panel/panelUiController.cpp" line="33"/>
+        <source>No connection to the panel: %1</source>
+        <translation>Немає зв&apos;язку з панеллю: %1</translation>
     </message>
 </context>
 <context>
