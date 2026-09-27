@@ -10,7 +10,7 @@ import sqlalchemy.exc
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Config, RevokedClient, Server, ServerContainer, User
+from app.db.models import ROLE_USER, Config, RevokedClient, Server, ServerContainer, User
 from app.domain.rules import UserState, is_config_active, user_status
 from app.drivers.base import ClientMaterial, get_driver
 from app.errors import ApiError
@@ -35,7 +35,8 @@ def ensure_user_active(user: User, now: datetime) -> None:
 
 
 async def lock_user(db: AsyncSession, user_id: int) -> User:
-    user = (await db.execute(select(User).where(User.id == user_id).with_for_update())).scalar_one_or_none()
+    user = (await db.execute(
+        select(User).where(User.id == user_id, User.role == ROLE_USER).with_for_update())).scalar_one_or_none()
     if user is None:
         raise ApiError(404, "not_found", "user not found")
     return user

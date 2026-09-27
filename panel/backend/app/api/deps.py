@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
-from app.db.models import Session, User
+from app.db.models import ROLE_ADMIN, ROLE_USER, Session, User
 from app.domain.clock import Clock
 from app.errors import ApiError
 from app.security.secretbox import SecretBox
@@ -17,7 +17,7 @@ from app.security.tokens import sha256_hex
 SESSION_COOKIE = "panel_session"
 CSRF_COOKIE = "panel_csrf"
 CSRF_HEADER = "X-CSRF-Token"
-SESSION_TTL = {"admin": timedelta(hours=12), "user": timedelta(days=30)}
+SESSION_TTL = {ROLE_ADMIN: timedelta(hours=12), ROLE_USER: timedelta(days=30)}
 _SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 
@@ -46,7 +46,7 @@ SecretBoxDep = Annotated[SecretBox, Depends(get_secretbox)]
 
 @dataclass
 class Principal:
-    role: str
+    role: str  # always read from the account row, never from the request or the session
     subject_id: int
     session_id: int
 
@@ -74,27 +74,26 @@ async def current_principal(request: Request, db: Db, clock: ClockDep) -> Princi
     session = (await db.execute(select(Session).where(Session.token_hash == sha256_hex(token)))).scalar_one_or_none()
     if session is None or session.revoked_at is not None or session.expires_at <= now:
         raise ApiError(401, "unauthorized", "session expired")
-    if session.subject == "user":
-        user = await db.get(User, session.subject_id)
-        if user is None or user.deleting_at is not None:
-            raise ApiError(401, "unauthorized", "account removed")
+    account = await db.get(User, session.user_id)
+    if account is None or account.deleting_at is not None:
+        raise ApiError(401, "unauthorized", "account removed")
     session.last_used_at = now
-    session.expires_at = now + SESSION_TTL[session.subject]
+    session.expires_at = now + SESSION_TTL[account.role]
     await db.commit()
-    return Principal(session.subject, session.subject_id, session.id)
+    return Principal(account.role, account.id, session.id)
 
 
 PrincipalDep = Annotated[Principal, Depends(current_principal)]
 
 
 async def current_admin(principal: PrincipalDep) -> Principal:
-    if principal.role != "admin":
+    if principal.role != ROLE_ADMIN:
         raise ApiError(403, "forbidden", "admin role required")
     return principal
 
 
 async def current_user(principal: PrincipalDep) -> Principal:
-    if principal.role != "user":
+    if principal.role != ROLE_USER:
         raise ApiError(403, "forbidden", "user role required")
     return principal
 

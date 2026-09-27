@@ -8,7 +8,7 @@ from sqlalchemy import text
 from app.config import Settings
 from app.db.base import make_engine, make_sessionmaker
 from app.db.migrate import upgrade_head
-from app.db.models import Admin, InviteKey, User
+from app.db.models import ROLE_ADMIN, InviteKey, User
 from app.domain.clock import FixedClock
 from app.main import create_app
 from app.security.passwords import hash_password
@@ -85,8 +85,9 @@ async def client(app):
 # --- factories ------------------------------------------------------------
 
 
-async def make_admin(db, login="admin", password=ADMIN_PASSWORD) -> Admin:
-    admin = Admin(login=login, password_hash=hash_password(password))
+async def make_admin(db, login="admin", password=ADMIN_PASSWORD) -> User:
+    admin = User(role=ROLE_ADMIN, display_name=login, login=login, password_hash=hash_password(password),
+                 max_configs=0)
     db.add(admin)
     await db.commit()
     return admin
@@ -107,8 +108,8 @@ def bearer(token: str) -> dict:
 
 
 async def login(client, login_, password, role) -> str:
-    r = await client.post("/api/auth/login", json={"login": login_, "password": password, "role": role})
-    assert r.status_code == 200, r.text
+    r = await client.post("/api/auth/login", json={"login": login_, "password": password})
+    assert r.status_code == 200 and r.json()["role"] == role, r.text
     client.cookies.clear()
     return r.json()["token"]
 

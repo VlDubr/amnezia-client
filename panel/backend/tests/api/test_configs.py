@@ -193,7 +193,7 @@ async def test_new_config_avoids_ips_of_blocked_configs(db, client, admin_token,
     ip_first = "10.8.1.3"
     detail = (await client.get(f"/api/me/configs/{second['id']}", headers=bearer(token))).json()
     assert f"Address = {ip_first}/32" not in detail["export"]["native"]
-    user = (await db.execute(select(User))).scalar_one()
+    user = (await db.execute(select(User).where(User.role == "user"))).scalar_one()
     assert user.max_configs == 3
 
 

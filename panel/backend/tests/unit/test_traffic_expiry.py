@@ -117,9 +117,12 @@ async def test_enqueue_periodic_jobs(db, clock):
 
 async def test_cleanup_removes_old_sessions_and_jobs(db, clock):
     now = clock.now()
+    user = User(display_name="Ivan", max_configs=1)
+    db.add(user)
+    await db.flush()
     db.add_all([
-        Session(subject="user", subject_id=1, token_hash="a" * 64, expires_at=now - timedelta(days=2)),
-        Session(subject="user", subject_id=1, token_hash="b" * 64, expires_at=now + timedelta(days=2)),
+        Session(user_id=user.id, token_hash="a" * 64, expires_at=now - timedelta(days=2)),
+        Session(user_id=user.id, token_hash="b" * 64, expires_at=now + timedelta(days=2)),
     ])
     old = await enqueue(db, "x")
     new = await enqueue(db, "y")

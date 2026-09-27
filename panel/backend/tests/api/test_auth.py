@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+import pytest
 from sqlalchemy import select
 
 from app.db.models import InviteKey, Session, User
@@ -189,10 +190,9 @@ async def test_cli_create_admin(pg_url, db, monkeypatch):
     monkeypatch.setenv("PANEL_DATABASE_URL", pg_url)
     monkeypatch.setenv("PANEL_MASTER_KEY", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
     await cli.create_admin("root", ADMIN_PASSWORD, pg_url)
-    from app.db.models import Admin
-
-    assert (await db.execute(select(Admin.login))).scalar_one() == "root"
-    assert (await db.execute(select(User))).first() is None
+    assert (await db.execute(select(User.login, User.role))).one() == ("root", "admin")
+    with pytest.raises(SystemExit, match="already taken"):
+        await cli.create_admin("root", ADMIN_PASSWORD, pg_url)
 
 
 async def test_redeem_race_on_the_same_login_is_a_clean_409(db, client, monkeypatch):

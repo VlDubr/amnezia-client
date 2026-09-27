@@ -15,7 +15,7 @@ import uvicorn
 from app.config import Settings
 from app.db.base import make_engine, make_sessionmaker
 from app.db.migrate import upgrade_head
-from app.db.models import Admin
+from app.db.models import ROLE_ADMIN, User
 from app.main import create_app
 from app.security.passwords import hash_password
 from tests.fakes import awg_server, remote_factory_for
@@ -29,7 +29,8 @@ async def serve(database_url: str, port: int) -> None:
     engine = make_engine(database_url)
     sessionmaker = make_sessionmaker(engine)
     async with sessionmaker() as db:
-        db.add(Admin(login="admin", password_hash=hash_password(E2E_ADMIN_PASSWORD)))
+        db.add(User(role=ROLE_ADMIN, display_name="admin", login="admin", max_configs=0,
+                    password_hash=hash_password(E2E_ADMIN_PASSWORD)))
         await db.commit()
 
     settings = Settings(database_url=database_url, master_key=MASTER_KEY, cookie_secure=False,

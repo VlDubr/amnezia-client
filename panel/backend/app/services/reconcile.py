@@ -4,7 +4,7 @@ from sqlalchemy import delete, exists, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Config, RevokedClient, Server, ServerContainer, User
+from app.db.models import ROLE_USER, Config, RevokedClient, Server, ServerContainer, User
 from app.domain.clock import Clock
 from app.domain.rules import UserState, is_config_active
 from app.drivers.base import ClientMaterial, get_driver, supported_containers
@@ -107,7 +107,7 @@ async def reconcile_server(db: AsyncSession, server_id: int, remote_factory: Rem
             await revoke(db, server_id, cfg.container, [cfg.client_id])
             await db.delete(cfg)
     await db.flush()
-    await db.execute(delete(User).where(User.deleting_at.is_not(None),
+    await db.execute(delete(User).where(User.role == ROLE_USER, User.deleting_at.is_not(None),
                                         ~exists().where(Config.user_id == User.id)))
     server.imported_at = server.imported_at or now
     server.last_ok_at = now

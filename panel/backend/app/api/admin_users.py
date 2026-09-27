@@ -16,7 +16,7 @@ from app.api.presenters import (
     traffic_by_user,
     user_out,
 )
-from app.db.models import Config, InviteKey, Server, TrafficDaily, User
+from app.db.models import ROLE_USER, Config, InviteKey, Server, TrafficDaily, User
 from app.domain.rules import after_expiry_change, expiry_instant, user_status
 from app.errors import ApiError
 from app.security.tokens import new_invite_key, normalize_invite_key, sha256_hex
@@ -42,7 +42,8 @@ class UserPatch(BaseModel):
 
 
 async def _get(db: AsyncSession, user_id: int, lock: bool = False) -> User:
-    query = select(User).where(User.id == user_id)
+    # Administrator accounts live in the same table but are never managed here.
+    query = select(User).where(User.id == user_id, User.role == ROLE_USER)
     if lock:
         query = query.with_for_update()
     user = (await db.execute(query)).scalar_one_or_none()
@@ -82,7 +83,7 @@ async def create_user(body: UserIn, admin: AdminDep, db: Db, clock: ClockDep, se
 @router.get("")
 async def list_users(_: AdminDep, db: Db, clock: ClockDep, settings: SettingsDep, status: str | None = None,
                      q: str | None = None) -> list[dict]:
-    query = select(User).order_by(User.display_name, User.id)
+    query = select(User).where(User.role == ROLE_USER).order_by(User.display_name, User.id)
     if q:
         pattern = f"%{q}%"
         query = query.where(or_(User.display_name.ilike(pattern), User.login.ilike(pattern),

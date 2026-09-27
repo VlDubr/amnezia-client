@@ -4,7 +4,7 @@ from sqlalchemy import func, select, update
 
 from app.api.audit import audit
 from app.api.auth import raise_password_errors
-from app.api.deps import ClockDep, Db, SettingsDep, UserDep
+from app.api.deps import ClockDep, Db, PrincipalDep, SettingsDep, UserDep
 from app.db.models import Config, Session, User
 from app.domain.rules import UserState, expires_on, user_status
 from app.errors import ApiError
@@ -40,7 +40,8 @@ async def me(principal: UserDep, db: Db, clock: ClockDep, settings: SettingsDep)
 
 
 @router.post("/password", status_code=204)
-async def change_password(body: PasswordIn, principal: UserDep, db: Db, clock: ClockDep) -> None:
+async def change_password(body: PasswordIn, principal: PrincipalDep, db: Db, clock: ClockDep) -> None:
+    """Б.4, for users and administrators alike: other sessions of the account are signed out."""
     user = await db.get(User, principal.subject_id)
     if not verify_password(user.password_hash or "", body.old):
         raise ApiError(403, "wrong_password", "current password is wrong")
@@ -48,8 +49,7 @@ async def change_password(body: PasswordIn, principal: UserDep, db: Db, clock: C
     user.password_hash = hash_password(body.new)
     await db.execute(
         update(Session)
-        .where(Session.subject == "user", Session.subject_id == user.id, Session.id != principal.session_id,
-               Session.revoked_at.is_(None))
+        .where(Session.user_id == user.id, Session.id != principal.session_id, Session.revoked_at.is_(None))
         .values(revoked_at=clock.now())
     )
     audit(db, principal.actor, "password_change", principal.actor)

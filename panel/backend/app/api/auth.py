@@ -1,6 +1,5 @@
 import re
 import secrets
-from typing import Literal
 
 from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel
@@ -20,7 +19,7 @@ from app.api.deps import (
     check_rate,
     client_ip,
 )
-from app.db.models import Admin, InviteKey, Session, User
+from app.db.models import ROLE_USER, InviteKey, Session, User
 from app.domain.clock import Clock
 from app.errors import ApiError
 from app.security.passwords import hash_password, validate_password, verify_password
@@ -34,9 +33,9 @@ _DUMMY_HASH = hash_password("dummy-password-for-timing")
 
 
 class LoginIn(BaseModel):
+    # No role: the account decides it. A "role" field sent by an older client is ignored.
     login: str
     password: str
-    role: Literal["admin", "user"]
 
 
 class InviteCheckIn(BaseModel):
@@ -54,19 +53,18 @@ class TokenOut(BaseModel):
     role: str
 
 
-async def start_session(db: AsyncSession, response: Response, role: str, subject_id: int, clock: Clock,
+async def start_session(db: AsyncSession, response: Response, account: User, clock: Clock,
                         secure: bool) -> TokenOut:
     token = new_token()
     now = clock.now()
-    ttl = SESSION_TTL[role]
-    db.add(Session(subject=role, subject_id=subject_id, token_hash=sha256_hex(token), last_used_at=now,
-                   expires_at=now + ttl))
+    ttl = SESSION_TTL[account.role]
+    db.add(Session(user_id=account.id, token_hash=sha256_hex(token), last_used_at=now, expires_at=now + ttl))
     max_age = int(ttl.total_seconds())
     response.set_cookie(SESSION_COOKIE, token, max_age=max_age, httponly=True, secure=secure, samesite="strict",
                         path="/api")
     response.set_cookie(CSRF_COOKIE, secrets.token_urlsafe(16), max_age=max_age, httponly=False, secure=secure,
                         samesite="strict", path="/")
-    return TokenOut(token=token, role=role)
+    return TokenOut(token=token, role=account.role)
 
 
 def raise_password_errors(password: str, user_inputs: list[str]) -> None:
@@ -79,15 +77,15 @@ def raise_password_errors(password: str, user_inputs: list[str]) -> None:
 async def login(body: LoginIn, request: Request, response: Response, db: Db, clock: ClockDep,
                 settings: SettingsDep) -> TokenOut:
     check_rate(request, "login_ip", client_ip(request))
-    check_rate(request, "login_name", f"{body.role}:{body.login.lower()}")
-    model = Admin if body.role == "admin" else User
-    account = (await db.execute(select(model).where(model.login == body.login))).scalar_one_or_none()
-    password_hash = getattr(account, "password_hash", None) or _DUMMY_HASH
+    check_rate(request, "login_name", body.login.lower())
+    account = (await db.execute(select(User).where(User.login == body.login))).scalar_one_or_none()
+    password_hash = (account.password_hash if account else None) or _DUMMY_HASH
     valid = verify_password(password_hash, body.password) and account is not None
-    if not valid or getattr(account, "deleting_at", None) is not None:
+    if not valid or account.deleting_at is not None:
         raise ApiError(401, "invalid_credentials", "wrong login or password")
-    out = await start_session(db, response, body.role, account.id, clock, settings.cookie_secure)
-    audit(db, f"{body.role}:{account.id}", "login", f"{body.role}:{account.id}", ip=client_ip(request))
+    out = await start_session(db, response, account, clock, settings.cookie_secure)
+    actor = f"{account.role}:{account.id}"
+    audit(db, actor, "login", actor, ip=client_ip(request))
     await db.commit()
     return out
 
@@ -103,8 +101,7 @@ async def logout(principal: PrincipalDep, response: Response, db: Db, clock: Clo
 
 @router.get("/session")
 async def session_info(principal: PrincipalDep, db: Db) -> dict:
-    model = Admin if principal.role == "admin" else User
-    account = await db.get(model, principal.subject_id)
+    account = await db.get(User, principal.subject_id)
     return {"role": principal.role, "id": principal.subject_id, "login": account.login}
 
 
@@ -115,7 +112,7 @@ async def _find_invite(db: AsyncSession, key: str) -> InviteKey:
     if invite is None or invite.used_at is not None or invite.revoked_at is not None:
         raise ApiError(404, "invite_invalid", "the key is invalid or already used")
     user = await db.get(User, invite.user_id)
-    if user.deleting_at is not None or user.login is not None:
+    if user.role != ROLE_USER or user.deleting_at is not None or user.login is not None:
         raise ApiError(404, "invite_invalid", "the key is invalid or already used")
     return invite
 
@@ -150,7 +147,7 @@ async def invite_redeem(body: InviteRedeemIn, request: Request, response: Respon
     except IntegrityError as e:  # another invite took the same login after our check
         await db.rollback()
         raise ApiError(409, "login_taken", "this login is already taken") from e
-    out = await start_session(db, response, "user", user.id, clock, settings.cookie_secure)
+    out = await start_session(db, response, user, clock, settings.cookie_secure)
     audit(db, f"user:{user.id}", "invite_redeem", f"user:{user.id}", ip=client_ip(request))
     await db.commit()
     return out

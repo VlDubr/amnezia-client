@@ -28,18 +28,20 @@ def _created() -> Mapped[datetime]:
     return mapped_column(TS, server_default=func.now(), nullable=False)
 
 
-class Admin(Base):
-    __tablename__ = "admins"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    login: Mapped[str] = mapped_column(String(64), unique=True)
-    password_hash: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = _created()
+ROLE_ADMIN = "admin"
+ROLE_USER = "user"
 
 
 class User(Base):
+    """Every account. Administrators have role 'admin' and none of the user limits or configs."""
+
     __tablename__ = "users"
-    __table_args__ = (CheckConstraint("blocked_by IN ('admin', 'expiry')", name="blocked_by"),)
+    __table_args__ = (
+        CheckConstraint("blocked_by IN ('admin', 'expiry')", name="blocked_by"),
+        CheckConstraint("role IN ('admin', 'user')", name="role"),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
+    role: Mapped[str] = mapped_column(String(8), default=ROLE_USER, server_default=ROLE_USER)
     display_name: Mapped[str] = mapped_column(String(128))
     note: Mapped[str] = mapped_column(Text, default="", server_default="")
     login: Mapped[str | None] = mapped_column(String(64), unique=True)
@@ -134,13 +136,9 @@ class TrafficDaily(Base):
 
 class Session(Base):
     __tablename__ = "sessions"
-    __table_args__ = (
-        CheckConstraint("subject IN ('admin', 'user')", name="subject"),
-        Index("ix_sessions_subject", "subject", "subject_id"),
-    )
     id: Mapped[int] = mapped_column(primary_key=True)
-    subject: Mapped[str] = mapped_column(String(8))
-    subject_id: Mapped[int] = mapped_column(Integer)
+    # No role here: it is read from the account on every request.
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     created_at: Mapped[datetime] = _created()
     last_used_at: Mapped[datetime | None] = mapped_column(TS)
