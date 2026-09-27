@@ -61,14 +61,28 @@ void PanelApiClient::signIn(const QString &url, const QString &login, const QStr
         done(result);
         return;
     }
-    QJsonObject body { { "login", login }, { "password", password }, { "role", "admin" } };
+    // One sign-in for every account: the server decides the role, and only an administrator may use these screens.
+    QJsonObject body { { "login", login }, { "password", password } };
     // The address and the token are stored only after a successful sign-in, so a mistyped address does not
     // sign the admin out of a working panel.
     sendTo(base, QString(), "POST", "/api/auth/login", &body, [this, base, done](const Result &result) {
-        if (result.ok()) {
-            m_appSettings->setPanelUrl(base);
-            m_appSettings->setPanelToken(result.body.object().value("token").toString());
+        if (!result.ok()) {
+            done(result);
+            return;
         }
+        const QJsonObject session = result.body.object();
+        const QString token = session.value("token").toString();
+        if (session.value("role").toString() != QLatin1String("admin")) {
+            // A user account: close the session it just opened and refuse.
+            sendTo(base, token, "POST", "/api/auth/logout", nullptr, [](const Result &) {});
+            Result refused;
+            refused.status = 403;
+            refused.errorCode = QStringLiteral("forbidden");
+            done(refused);
+            return;
+        }
+        m_appSettings->setPanelUrl(base);
+        m_appSettings->setPanelToken(token);
         done(result);
     });
 }
