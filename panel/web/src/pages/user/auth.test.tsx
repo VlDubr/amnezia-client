@@ -77,8 +77,17 @@ describe("user login", () => {
   it("links to invite registration", async () => {
     anonymous();
     const { router } = renderApp("/login");
-    await userEvent.click(await screen.findByRole("link", { name: "Ввести ключ для авторизации" }));
+    await userEvent.click(await screen.findByRole("link", { name: "Ввести ключ для регистрации" }));
     expect(router.state.location.pathname).toBe("/invite");
+  });
+
+  it("links to the administrator sign-in and back", async () => {
+    anonymous();
+    const { router } = renderApp("/login");
+    await userEvent.click(await screen.findByRole("link", { name: "Вход для администратора" }));
+    expect(router.state.location.pathname).toBe("/admin/login");
+    await userEvent.click(await screen.findByRole("link", { name: "Вход для пользователя" }));
+    expect(router.state.location.pathname).toBe("/login");
   });
 });
 

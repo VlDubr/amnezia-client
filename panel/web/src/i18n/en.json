@@ -44,7 +44,7 @@
     "login": "Login",
     "password": "Password",
     "sign_in": "Sign in",
-    "have_key": "Enter an invite key",
+    "have_key": "Enter a key to register",
     "invite_title": "Register with a key",
     "invite_key": "Key",
     "invite_key_hint": "The key you got from the administrator, e.g. ABCD-EFGH-…",
@@ -53,7 +53,9 @@
     "passwords_differ": "Passwords do not match",
     "register": "Register",
     "back_to_login": "Already registered? Sign in",
-    "login_rules": "3–64 characters: Latin letters, digits, '.', '_', '-'"
+    "login_rules": "3–64 characters: Latin letters, digits, '.', '_', '-'",
+    "admin_link": "Administrator sign in",
+    "user_link": "User sign in"
   },
   "password": {
     "rules": "At least 12 characters and hard to guess: no names, dates or simple sequences.",

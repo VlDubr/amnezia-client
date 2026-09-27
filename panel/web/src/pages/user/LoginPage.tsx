@@ -13,6 +13,10 @@ export default function LoginPage() {
         <Anchor component={Link} to="/invite" ta="center" size="sm">
           {t("auth.have_key")}
         </Anchor>
+        {/* Administrators sign in on their own page: the same login here is checked against users only. */}
+        <Anchor component={Link} to="/admin/login" ta="center" size="sm" c="dimmed">
+          {t("auth.admin_link")}
+        </Anchor>
       </Stack>
     </AuthLayout>
   );

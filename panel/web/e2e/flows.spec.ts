@@ -47,7 +47,7 @@ async function logout(page: Page) {
 
 async function register(page: Page, key: string, login: string) {
   await page.goto("/login");
-  await page.getByRole("link", { name: "Ввести ключ для авторизации" }).click();
+  await page.getByRole("link", { name: "Ввести ключ для регистрации" }).click();
   await page.getByLabel("Ключ").fill(key.toLowerCase().replaceAll("-", " "));
   await page.getByRole("button", { name: "Далее" }).click();
   await page.getByLabel("Логин").fill(login);
