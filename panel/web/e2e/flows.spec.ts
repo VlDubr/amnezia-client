@@ -5,7 +5,7 @@ const USER_PASSWORD = "Us3r-Pa55w0rd!qwe";
 const NEW_PASSWORD = "N3w-Pa55w0rd!asd";
 
 async function adminLogin(page: Page) {
-  await page.goto("/admin/login");
+  await page.goto("/login");
   await page.getByLabel("Логин").fill("admin");
   await page.getByLabel("Пароль").fill(ADMIN_PASSWORD);
   await page.getByRole("button", { name: "Войти" }).click();

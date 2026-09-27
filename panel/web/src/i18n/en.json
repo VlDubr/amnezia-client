@@ -40,7 +40,6 @@
   },
   "auth": {
     "login_title": "Sign in",
-    "admin_login_title": "Administrator sign in",
     "login": "Login",
     "password": "Password",
     "sign_in": "Sign in",
@@ -53,9 +52,7 @@
     "passwords_differ": "Passwords do not match",
     "register": "Register",
     "back_to_login": "Already registered? Sign in",
-    "login_rules": "3–64 characters: Latin letters, digits, '.', '_', '-'",
-    "admin_link": "Administrator sign in",
-    "user_link": "User sign in"
+    "login_rules": "3–64 characters: Latin letters, digits, '.', '_', '-'"
   },
   "password": {
     "rules": "At least 12 characters and hard to guess: no names, dates or simple sequences.",

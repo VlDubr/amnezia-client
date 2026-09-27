@@ -1,7 +1,6 @@
-import { Navigate, type RouteObject } from "react-router";
+import { Navigate, useLocation, type RouteObject } from "react-router";
 import { RequireRole } from "./auth/session";
 import { AppLayout } from "./components/AppLayout";
-import AdminLoginPage from "./pages/admin/AdminLoginPage";
 import AuditPage from "./pages/admin/AuditPage";
 import OrphansPage from "./pages/admin/OrphansPage";
 import ServerPage from "./pages/admin/ServerPage";
@@ -13,10 +12,16 @@ import DashboardPage from "./pages/user/DashboardPage";
 import InvitePage from "./pages/user/InvitePage";
 import LoginPage from "./pages/user/LoginPage";
 
+/** The former administrator sign-in address: the one sign-in page now serves every account. */
+function OldAdminLogin() {
+  const { search } = useLocation();
+  return <Navigate to={`/login${search}`} replace />;
+}
+
 export const routes: RouteObject[] = [
   { path: "/login", element: <LoginPage /> },
   { path: "/invite", element: <InvitePage /> },
-  { path: "/admin/login", element: <AdminLoginPage /> },
+  { path: "/admin/login", element: <OldAdminLogin /> },
   {
     path: "/",
     element: (

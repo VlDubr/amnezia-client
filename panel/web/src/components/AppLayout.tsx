@@ -39,7 +39,7 @@ export function AppLayout({ area }: { area: Role }) {
   async function logout() {
     await api("/api/auth/logout", { method: "POST" }).catch(() => {});
     // Leave the protected area first, so the route guard does not add a `next` back to this page.
-    navigate(loginPath(area), { replace: true });
+    navigate(loginPath(), { replace: true });
     queryClient.clear();
     queryClient.setQueryData(SESSION_KEY, null);
   }

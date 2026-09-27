@@ -16,10 +16,11 @@ function anonymous() {
     ),
     http.get("/api/me/servers", () => HttpResponse.json([])),
     http.get("/api/me/configs", () => HttpResponse.json([])),
+    http.get("/api/admin/users", () => HttpResponse.json([])),
   );
   return {
-    signIn: () => {
-      session = { role: "user", id: 1, login: "ivan" };
+    signIn: (role: "user" | "admin" = "user") => {
+      session = { role, id: 1, login: role === "admin" ? "admin" : "ivan" };
     },
   };
 }
@@ -40,7 +41,7 @@ describe("user login", () => {
     await userEvent.type(screen.getByLabelText(/Пароль/), "secret-password");
     await userEvent.click(screen.getByRole("button", { name: "Войти" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/account"));
-    expect(body).toEqual({ login: "ivan", password: "secret-password", role: "user" });
+    expect(body).toEqual({ login: "ivan", password: "secret-password" }); // the server decides the role
   });
 
   it("signs in again after a sign out left an empty session in the cache", async () => {
@@ -81,13 +82,27 @@ describe("user login", () => {
     expect(router.state.location.pathname).toBe("/invite");
   });
 
-  it("links to the administrator sign-in and back", async () => {
-    anonymous();
+  it("sends an administrator to the admin area from the same form", async () => {
+    const s = anonymous();
+    server.use(
+      http.post("/api/auth/login", () => {
+        s.signIn("admin");
+        return HttpResponse.json({ token: "t", role: "admin" });
+      }),
+    );
     const { router } = renderApp("/login");
-    await userEvent.click(await screen.findByRole("link", { name: "Вход для администратора" }));
-    expect(router.state.location.pathname).toBe("/admin/login");
-    await userEvent.click(await screen.findByRole("link", { name: "Вход для пользователя" }));
+    await userEvent.type(await screen.findByLabelText(/Логин/), "admin");
+    await userEvent.type(screen.getByLabelText(/Пароль/), "secret-password");
+    await userEvent.click(screen.getByRole("button", { name: "Войти" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/admin/users"));
+  });
+
+  it("keeps the old admin sign-in address working", async () => {
+    anonymous();
+    const { router } = renderApp("/admin/login?next=%2Fadmin%2Fservers");
+    expect(await screen.findByRole("heading", { name: "Вход" })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/login");
+    expect(new URLSearchParams(router.state.location.search).get("next")).toBe("/admin/servers");
   });
 });
 

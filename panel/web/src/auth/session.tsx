@@ -41,11 +41,16 @@ export function SessionBridge() {
   return null;
 }
 
-export function loginPath(role: Role, next?: string) {
-  const base = role === "admin" ? "/admin/login" : "/login";
-  return next ? `${base}?next=${encodeURIComponent(next)}` : base;
+/** One sign-in page for every account: the server tells which role it has. */
+export function loginPath(next?: string) {
+  return next ? `/login?next=${encodeURIComponent(next)}` : "/login";
 }
 
+export function homePath(role: Role) {
+  return role === "admin" ? "/admin" : "/";
+}
+
+/** The page is only a convenience: every API call is checked against the account's role on the server. */
 export function RequireRole({ role, children }: { role: Role; children: ReactNode }) {
   const { data, isPending } = useSession();
   const location = useLocation();
@@ -56,17 +61,21 @@ export function RequireRole({ role, children }: { role: Role; children: ReactNod
       </Center>
     );
   }
-  if (!data || data.role !== role) {
-    return <Navigate to={loginPath(role, location.pathname + location.search)} replace />;
+  if (!data) {
+    return <Navigate to={loginPath(location.pathname + location.search)} replace />;
+  }
+  if (data.role !== role) {
+    return <Navigate to={homePath(data.role)} replace />;
   }
   return <>{children}</>;
 }
 
-/** Where to go after a successful sign in: the `next` path if it belongs to the same area. */
+/** Where to go after a successful sign in: the `next` path if it belongs to the role's own area on this site. */
 export function nextPath(search: string, role: Role): string {
   const next = new URLSearchParams(search).get("next");
-  const home = role === "admin" ? "/admin" : "/";
-  if (!next || !next.startsWith("/") || next.startsWith("//")) return home;
+  const home = homePath(role);
+  // "//host" and "/\host" would leave the site.
+  if (!next || !next.startsWith("/") || next.startsWith("//") || next.includes("\\")) return home;
   const isAdminPath = next === "/admin" || next.startsWith("/admin/");
   return isAdminPath === (role === "admin") ? next : home;
 }
