@@ -77,7 +77,7 @@ You need a Linux VPS with Docker and the compose plugin, plus a DNS name that po
    docker compose exec backend python -m app.cli create-admin --login admin
    ```
 
-Open `https://<PANEL_DOMAIN>/admin/login` and sign in as the administrator. The page at `https://<PANEL_DOMAIN>/` is the sign-in for users; it does not accept administrator accounts.
+Open `https://<PANEL_DOMAIN>/login` and sign in as the administrator. Administrators and users sign in on the same page; the panel then opens the area of the account's role.
 
 ## Add a server
 
@@ -127,7 +127,7 @@ Servers are added and protocols are installed in the web admin area only.
 
 The REST API lives under `/api`. Its OpenAPI description is served at `/api/openapi.json`, and interactive docs are at `/api/docs`.
 
-Clients authenticate with `POST /api/auth/login`:
+Clients authenticate with `POST /api/auth/login {login, password}`. The response carries the account's role; the client never sends one. Administrators and users are rows of one accounts table, and the role is checked on every request.
 
 - Browsers get an HttpOnly session cookie plus a CSRF cookie. Requests that change data must send the CSRF cookie back in the `X-CSRF-Token` header.
 - Other clients use the returned token as `Authorization: Bearer <token>`.
@@ -156,7 +156,7 @@ npx playwright install chromium
 npm run e2e        # browser tests: real backend with an in-memory VPN server + the production build
 ```
 
-The user cabinet is at `/`; the administrator area is at `/admin` (sign in at `/admin/login`).
+Everyone signs in at `/login`. The user cabinet is at `/`, the administrator area at `/admin`.
 
 ### Try it locally without VPN servers
 
@@ -177,4 +177,4 @@ npm ci
 PANEL_API=http://127.0.0.1:8765 npm run dev   # PowerShell: $env:PANEL_API="http://127.0.0.1:8765"; npm run dev
 ```
 
-Open `http://localhost:5173/admin/login`. In the AmneziaVPN app, use the panel address `http://127.0.0.1:8765` (plain http is accepted only for this machine).
+Open `http://localhost:5173/login`. In the AmneziaVPN app, use the panel address `http://127.0.0.1:8765` (plain http is accepted only for this machine).

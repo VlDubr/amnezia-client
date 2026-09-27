@@ -132,9 +132,8 @@ panel/
 Все отметки времени хранятся в UTC (`timestamptz`).
 
 ```
-admins          id, login UNIQUE, password_hash, created_at
-
-users           id, display_name, note,
+users           id, role 'admin' | 'user',                 -- одна таблица для всех учётных записей
+                display_name, note,
                 login UNIQUE NULL, password_hash NULL,     -- пусто до регистрации по ключу
                 blocked_by NULL | 'admin' | 'expiry',
                 expires_at NULL, max_configs INT NOT NULL,
@@ -164,7 +163,7 @@ configs         id, user_id FK NULL,                       -- NULL = без вл
 
 traffic_daily   config_id FK, day DATE, rx BIGINT, tx BIGINT   PK (config_id, day)
 
-sessions        id, subject ('admin'|'user'), subject_id, token_hash UNIQUE,
+sessions        id, user_id FK, token_hash UNIQUE,         -- роли в сессии нет: она читается из users
                 created_at, last_used_at, expires_at, revoked_at NULL
 
 jobs            id, kind, server_id NULL, payload_json, status, run_after,
@@ -247,7 +246,8 @@ class Driver(Protocol):
 
 ### Авторизация
 
-- `POST /auth/login {login, password, role}` возвращает непрозрачный токен.
+- `POST /auth/login {login, password}` возвращает непрозрачный токен и роль учётной записи. Роль клиент не передаёт: сервер берёт её из `users.role` при входе и при каждом запросе, поэтому подменить её нельзя, а смена роли действует сразу. Логины уникальны для обеих ролей.
+- Администраторы не видны в API управления пользователями (`/api/admin/users…`): ключи приглашения, лимиты, срок доступа, блокировка и конфиги относятся только к учётным записям с ролью `user`.
 - Веб получает токен в cookie `HttpOnly; Secure; SameSite=Strict` и отправляет CSRF-заголовок в запросах с изменениями. Qt-клиент передаёт токен в `Authorization: Bearer`.
 - Время жизни токена: 12 часов у администратора, 30 дней у пользователя. Срок продлевается при использовании.
 - `POST /auth/logout`.
