@@ -42,7 +42,7 @@ Imported clients (created outside the panel) can be issued again only when the s
 
 ## Install
 
-You need a Linux VPS with Docker and the compose plugin, plus a DNS name that points to it.
+You need a Linux VPS with Docker and the compose plugin. With a DNS name that points to it, the panel gets a free public certificate; without one, see [Without a domain](#without-a-domain-self-signed-certificate).
 
 1. Get the code:
 
@@ -78,6 +78,30 @@ You need a Linux VPS with Docker and the compose plugin, plus a DNS name that po
    ```
 
 Open `https://<PANEL_DOMAIN>/login` and sign in as the administrator. Administrators and users sign in on the same page; the panel then opens the area of the account's role.
+
+### Without a domain (self-signed certificate)
+
+The panel can run on the server's IP address with its own certificate:
+
+1. In `.env`, set `PANEL_DOMAIN` to the server's IP address and `PANEL_TLS=self-signed`.
+2. Make the certificate (valid for 10 years) before the first start, from `panel/deploy`:
+
+   ```bash
+   ./gen-self-signed-cert.sh 203.0.113.5
+   ```
+
+   It prints the certificate's SHA-256 fingerprint. Keep it: you compare it on the first connection. To see it
+   again: `openssl x509 -in certs/panel.crt -noout -fingerprint -sha256`.
+3. Start the stack as above and open `https://203.0.113.5/login`.
+
+What to expect:
+
+- **Browser:** it warns that the certificate is not trusted. Check the fingerprint in the certificate details, then
+  accept it. Every browser and every user does this once.
+- **AmneziaVPN app:** on the first sign-in it shows the fingerprint and asks to trust it. It then accepts only that
+  certificate for that address; a different one is refused as a possible interception.
+- **Replacing the certificate** (`FORCE=1 ./gen-self-signed-cert.sh ...`, then `docker compose restart caddy`)
+  means everyone accepts the new one again.
 
 ## Add a server
 
