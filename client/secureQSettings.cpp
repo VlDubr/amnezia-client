@@ -24,7 +24,7 @@ namespace {
 }
 
 SecureQSettings::SecureQSettings(const QString &organization, const QString &application, QObject *parent, bool enableEncryption)
-    : QObject { parent }, m_settings(organization, application, parent), encryptedKeys({ "Servers/serversList" }), m_encryptionEnabled(enableEncryption)
+    : QObject { parent }, m_settings(organization, application, parent), encryptedKeys({ "Servers/serversList", "Conf/panelToken" }), m_encryptionEnabled(enableEncryption)
 {
     bool encrypted = m_settings.value("Conf/encrypted").toBool();
 
@@ -127,7 +127,7 @@ QByteArray SecureQSettings::backupAppConfig() const
     const auto needToBackup = [this](const auto &key) {
       for (const auto &item : m_fieldsToBackup)
       {
-        if (key == "Conf/installationUuid")
+        if (key == "Conf/installationUuid" || key == "Conf/panelToken")
         {
           return false;
         }
@@ -163,7 +163,8 @@ bool SecureQSettings::restoreAppConfig(const QByteArray &json)
         return false;
 
     for (const QString &key : cfg.keys()) {
-        if (key == "Conf/installationUuid") {
+        // A panel admin session is never carried between devices by a backup.
+        if (key == "Conf/installationUuid" || key == "Conf/panelToken") {
             continue;
         }
 

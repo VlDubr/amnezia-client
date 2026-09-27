@@ -19,13 +19,15 @@ PageType {
         target: PanelController
 
         function onSignedInChanged() {
-            if (PanelController.isSignedIn) {
+            if (PanelController.isSignedIn && root.StackView.status === StackView.Active) {
+                // Replace the sign-in page: Back from the user list must not return to it.
+                PageController.closePage()
                 PageController.goToPage(PageEnum.PagePanelUsers)
             }
         }
 
         function onErrorTextChanged() {
-            if (PanelController.errorText !== "") {
+            if (PanelController.errorText !== "" && root.StackView.status === StackView.Active) {
                 PageController.showErrorMessage(PanelController.errorText)
             }
         }

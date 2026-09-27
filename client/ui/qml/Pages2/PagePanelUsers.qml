@@ -31,18 +31,20 @@ PageType {
 
         function onSignedInChanged() {
             if (!PanelController.isSignedIn) {
+                // Drop every panel page (this one and a user page above it), then offer to sign in again.
+                PageController.goToStartPage()
                 PageController.goToPage(PageEnum.PagePanelLogin)
             }
         }
 
         function onErrorTextChanged() {
-            if (PanelController.errorText !== "") {
+            if (PanelController.errorText !== "" && root.StackView.status === StackView.Active) {
                 PageController.showErrorMessage(PanelController.errorText)
             }
         }
 
         function onInviteKeyChanged() {
-            if (PanelController.inviteKey !== "") {
+            if (PanelController.inviteKey !== "" && root.StackView.status === StackView.Active) {
                 root.creating = false
                 var key = PanelController.inviteKey
                 showQuestionDrawer(qsTr("Invite key"),
@@ -136,9 +138,10 @@ PageType {
                 BasicButtonType {
                     Layout.fillWidth: true
                     enabled: !PanelController.busy && newName.textField.text !== ""
+                             && newLimit.textField.acceptableInput && newExpires.textField.acceptableInput
                     text: qsTr("Create")
                     clickedFunc: function() {
-                        PanelController.createUser(newName.textField.text, parseInt(newLimit.textField.text || "0"),
+                        PanelController.createUser(newName.textField.text, parseInt(newLimit.textField.text),
                                                    newExpires.textField.text, "")
                     }
                 }

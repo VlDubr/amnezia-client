@@ -27,9 +27,21 @@ PageType {
     }
 
     function configStatus(config) {
+        if (config.status === "deleting") return qsTr("Being removed")
         if (config.status === "blocked") return config.blocked_by === "user" ? qsTr("Blocked by user") : qsTr("Blocked")
         if (config.status === "inactive") return qsTr("Inactive")
         return qsTr("Active")
+    }
+
+    function userStatus(user) {
+        if (user.status === "blocked") return qsTr("Blocked")
+        if (user.status === "expired") return qsTr("Expired")
+        if (user.status === "deleting") return qsTr("Being removed")
+        return qsTr("Active")
+    }
+
+    function isActive() {
+        return root.StackView.status === StackView.Active
     }
 
     Component.onCompleted: PanelController.loadServers()
@@ -40,25 +52,25 @@ PageType {
         function onUserDeleted() { PageController.closePage() }
 
         function onErrorTextChanged() {
-            if (PanelController.errorText !== "") {
+            if (PanelController.errorText !== "" && root.isActive()) {
                 PageController.showErrorMessage(PanelController.errorText)
             }
         }
 
         function onShareChanged() {
-            root.issuing = false
             var share = PanelController.share
+            if (share.name === undefined || !root.isActive()) {
+                return // cleared on sign-out
+            }
             if (!share.available) {
                 PageController.showNotificationMessage(qsTr("This imported config cannot be issued again"))
                 return
             }
-            var text = share.vpn_key !== "" ? share.vpn_key : share.native
-            showQuestionDrawer(share.name, text, qsTr("Copy"), qsTr("Close"),
-                               function() { GC.copyToClipBoard(text) }, function() {})
+            shareDrawer.openTriggered()
         }
 
         function onInviteKeyChanged() {
-            if (PanelController.inviteKey !== "") {
+            if (PanelController.inviteKey !== "" && root.isActive()) {
                 var key = PanelController.inviteKey
                 showQuestionDrawer(qsTr("Invite key"), key + "\n\n" + qsTr("The key is shown only once."),
                                    qsTr("Copy"), qsTr("Close"),
@@ -95,10 +107,14 @@ PageType {
                 Layout.leftMargin: 16
                 Layout.rightMargin: 16
 
+                readonly property var traffic: root.user.traffic_total || { "rx": 0, "tx": 0 }
+
                 headerText: root.user.display_name || ""
-                descriptionText: (root.user.registered ? qsTr("Registered: ") + root.user.login : qsTr("Not registered yet"))
-                                 + "\n" + qsTr("Downloaded: ") + formatBytes(root.user.traffic_total ? root.user.traffic_total.rx : 0)
-                                 + " · " + qsTr("Uploaded: ") + formatBytes(root.user.traffic_total ? root.user.traffic_total.tx : 0)
+                descriptionText: userStatus(root.user) + " · "
+                                 + (root.user.registered ? qsTr("Registered: ") + root.user.login
+                                                         : qsTr("Not registered yet"))
+                                 + "\n" + qsTr("Downloaded: ") + formatBytes(traffic.rx)
+                                 + " · " + qsTr("Uploaded: ") + formatBytes(traffic.tx)
             }
 
             Repeater {
@@ -107,7 +123,8 @@ PageType {
                     Layout.fillWidth: true
                     Layout.leftMargin: 16
                     Layout.rightMargin: 16
-                    text: modelData.server_name + ": ↓ " + formatBytes(modelData.rx) + " · ↑ " + formatBytes(modelData.tx)
+                    text: modelData.server_name + ": ↓ " + formatBytes(modelData.rx)
+                          + " · ↑ " + formatBytes(modelData.tx)
                 }
             }
 
@@ -135,11 +152,13 @@ PageType {
                 Layout.fillWidth: true
                 Layout.leftMargin: 16
                 Layout.rightMargin: 16
-                enabled: !PanelController.busy
+                // An empty limit is not 0: Save waits until both fields hold complete values.
+                enabled: !PanelController.busy && limitField.textField.acceptableInput
+                         && expiresField.textField.acceptableInput
                 text: qsTr("Save")
                 clickedFunc: function() {
                     PanelController.saveUser(root.user.id, root.user.display_name,
-                                             parseInt(limitField.textField.text || "0"), expiresField.textField.text,
+                                             parseInt(limitField.textField.text), expiresField.textField.text,
                                              root.user.note || "")
                 }
             }
@@ -217,9 +236,12 @@ PageType {
                         model: serverData.containers
                         delegate: LabelWithButtonType {
                             Layout.fillWidth: true
+                            // Creating a config takes a while over SSH: one tap issues exactly one config.
+                            enabled: !PanelController.busy
                             text: serverData.name + " · " + modelData.title
                             rightImageSource: "qrc:/images/controls/plus.svg"
                             clickedFunction: function() {
+                                root.issuing = false
                                 PanelController.issueConfig(root.user.id, serverData.id, modelData.container)
                             }
                         }
@@ -231,30 +253,46 @@ PageType {
         model: root.user.configs || []
 
         delegate: ColumnLayout {
+            id: configRow
+
             width: listView.width
+
+            // A config being removed keeps no actions: the server is still dropping it.
+            readonly property bool removing: modelData.status === "deleting"
+            readonly property bool blocked: modelData.blocked_by !== null && modelData.blocked_by !== undefined
 
             LabelWithButtonType {
                 Layout.fillWidth: true
+                enabled: !configRow.removing
                 text: modelData.name
                 descriptionText: modelData.server_name + " · " + modelData.protocol + " · " + configStatus(modelData)
                                  + " · ↓ " + formatBytes(modelData.traffic.rx)
-                rightImageSource: "qrc:/images/controls/chevron-right.svg"
+                rightImageSource: configRow.removing ? "" : "qrc:/images/controls/chevron-right.svg"
 
-                clickedFunction: function() {
+                clickedFunction: function() { PanelController.showConfig(modelData.id) }
+            }
+
+            BasicButtonType {
+                Layout.leftMargin: 16
+                visible: !configRow.removing
+                defaultColor: AmneziaStyle.color.transparent
+                textColor: AmneziaStyle.color.paleGray
+                text: configRow.blocked ? qsTr("Unblock config") : qsTr("Block config")
+                clickedFunc: function() {
                     var config = modelData
-                    var blocked = config.blocked_by !== null && config.blocked_by !== undefined
-                    showQuestionDrawer(config.name, qsTr("Choose an action"),
-                                       qsTr("Show"), blocked ? qsTr("Unblock") : qsTr("Block"),
-                                       function() { PanelController.showConfig(config.id) },
-                                       function() {
-                                           if (blocked) PanelController.unblockConfig(config.id)
-                                           else PanelController.blockConfig(config.id)
-                                       })
+                    if (configRow.blocked) {
+                        PanelController.unblockConfig(config.id)
+                        return
+                    }
+                    showQuestionDrawer(qsTr("Block %1?").arg(config.name),
+                                       qsTr("The config stops working but is kept."), qsTr("Block"), qsTr("Cancel"),
+                                       function() { PanelController.blockConfig(config.id) }, function() {})
                 }
             }
 
             BasicButtonType {
                 Layout.leftMargin: 16
+                visible: !configRow.removing
                 defaultColor: AmneziaStyle.color.transparent
                 textColor: AmneziaStyle.color.vibrantRed
                 text: qsTr("Delete config")
@@ -267,6 +305,93 @@ PageType {
             }
 
             DividerType {}
+        }
+    }
+    DrawerType2 {
+        id: shareDrawer
+
+        anchors.fill: parent
+        expandedHeight: root.height * 0.9
+
+        expandedStateContent: Item {
+            id: shareView
+
+            readonly property var share: PanelController.share
+            readonly property string text: share.vpn_key ? share.vpn_key : (share.native || "")
+
+            BackButtonType {
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.topMargin: 16
+                backButtonFunction: function() { shareDrawer.closeTriggered() }
+            }
+
+            FlickableType {
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.topMargin: 56
+                contentHeight: shareContent.height + 32
+
+                ColumnLayout {
+                    id: shareContent
+
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.leftMargin: 16
+                    anchors.rightMargin: 16
+                    spacing: 16
+
+                    Header2Type {
+                        Layout.fillWidth: true
+                        headerText: shareView.share.name || ""
+                    }
+
+                    Rectangle {
+                        Layout.preferredWidth: Math.min(shareContent.width, root.height * 0.45, 360)
+                        Layout.preferredHeight: Layout.preferredWidth
+                        Layout.alignment: Qt.AlignHCenter
+                        visible: !!shareView.share.qr
+                        color: "white"
+                        radius: 12
+
+                        Image {
+                            anchors.fill: parent
+                            anchors.margins: 8
+                            smooth: false
+                            fillMode: Image.PreserveAspectFit
+                            sourceSize.width: width
+                            sourceSize.height: height
+                            source: shareView.share.qr || ""
+                        }
+                    }
+
+                    BasicButtonType {
+                        Layout.fillWidth: true
+                        text: qsTr("Copy")
+                        clickedFunc: function() {
+                            GC.copyToClipBoard(shareView.text)
+                            PageController.showNotificationMessage(qsTr("Copied"))
+                        }
+                    }
+
+                    TextArea {
+                        Layout.fillWidth: true
+                        readOnly: true
+                        color: AmneziaStyle.color.paleGray
+                        selectionColor: AmneziaStyle.color.richBrown
+                        selectedTextColor: AmneziaStyle.color.paleGray
+                        font.pixelSize: 14
+                        font.family: "PT Root UI VF"
+                        // A vpn:// key has no spaces: wrap anywhere so all of it is visible.
+                        wrapMode: Text.WrapAnywhere
+                        text: shareView.text
+                        background: Rectangle { color: AmneziaStyle.color.transparent }
+                    }
+                }
+            }
         }
     }
 }

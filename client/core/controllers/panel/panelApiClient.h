@@ -49,6 +49,8 @@ signals:
 
 private:
     void send(const QByteArray &method, const QString &path, const QJsonObject *body, const Callback &done);
+    void sendTo(const QString &base, const QString &token, const QByteArray &method, const QString &path,
+                const QJsonObject *body, const Callback &done);
 
     SecureAppSettingsRepository *m_appSettings;
     QNetworkAccessManager *m_network;

@@ -1,25 +1,37 @@
 #include "panelUiController.h"
 
 #include <QJsonArray>
-#include <QUrlQuery>
+#include <QUrl>
 
 namespace
 {
+    // QT_TRANSLATE_NOOP keeps the strings in the PanelUiController context that tr() looks them up in.
     QString errorTextFor(const QString &code, const QString &message)
     {
         static const QHash<QString, const char *> texts {
-            { "invalid_credentials", QT_TR_NOOP("Wrong login or password") },
-            { "rate_limited", QT_TR_NOOP("Too many attempts. Wait a bit and try again.") },
-            { "config_limit", QT_TR_NOOP("Config limit reached") },
-            { "server_unavailable", QT_TR_NOOP("The server does not respond. Try again later.") },
-            { "user_blocked", QT_TR_NOOP("Access is blocked") },
-            { "user_expired", QT_TR_NOOP("Access period has ended") },
-            { "already_registered", QT_TR_NOOP("The user has already registered") },
-            { "not_found", QT_TR_NOOP("Not found") },
-            { "forbidden", QT_TR_NOOP("Administrator sign-in required") },
-            { "unauthorized", QT_TR_NOOP("Administrator sign-in required") },
-            { "network", QT_TR_NOOP("No connection to the panel") },
+            { "invalid_credentials", QT_TRANSLATE_NOOP("PanelUiController", "Wrong login or password") },
+            { "rate_limited", QT_TRANSLATE_NOOP("PanelUiController", "Too many attempts. Wait a bit and try again.") },
+            { "config_limit", QT_TRANSLATE_NOOP("PanelUiController", "Config limit reached") },
+            { "server_unavailable",
+              QT_TRANSLATE_NOOP("PanelUiController", "The server does not respond. Try again later.") },
+            { "server_full", QT_TRANSLATE_NOOP("PanelUiController", "The server has no room for another config") },
+            { "unsupported_container",
+              QT_TRANSLATE_NOOP("PanelUiController", "This protocol is not installed on the server") },
+            { "validation_error", QT_TRANSLATE_NOOP("PanelUiController", "Check the entered values") },
+            { "user_blocked", QT_TRANSLATE_NOOP("PanelUiController", "Access is blocked") },
+            { "user_expired", QT_TRANSLATE_NOOP("PanelUiController", "Access period has ended") },
+            { "already_registered", QT_TRANSLATE_NOOP("PanelUiController", "The user has already registered") },
+            { "not_found", QT_TRANSLATE_NOOP("PanelUiController", "Not found") },
+            { "forbidden", QT_TRANSLATE_NOOP("PanelUiController", "Administrator sign-in required") },
+            { "unauthorized", QT_TRANSLATE_NOOP("PanelUiController", "Administrator sign-in required") },
+            { "insecure_url",
+              QT_TRANSLATE_NOOP("PanelUiController",
+                                "Use an https:// address: http:// sends the password unencrypted") },
         };
+        if (code == QLatin1String("network")) {
+            // Keep the transport error: a TLS or certificate problem is otherwise impossible to tell apart.
+            return PanelUiController::tr("No connection to the panel: %1").arg(message);
+        }
         const auto it = texts.constFind(code);
         return it != texts.constEnd() ? PanelUiController::tr(it.value()) : message;
     }
@@ -34,7 +46,10 @@ namespace
 
 PanelUiController::PanelUiController(PanelApiClient *api, QObject *parent) : QObject(parent), m_api(api)
 {
-    connect(m_api, &PanelApiClient::sessionExpired, this, &PanelUiController::signedInChanged);
+    connect(m_api, &PanelApiClient::sessionExpired, this, [this]() {
+        clearData();
+        emit signedInChanged();
+    });
 }
 
 bool PanelUiController::isSignedIn() const
@@ -97,21 +112,28 @@ void PanelUiController::signIn(const QString &url, const QString &login, const Q
 void PanelUiController::signOut()
 {
     m_api->signOut();
+    clearData();
+    emit signedInChanged();
+}
+
+void PanelUiController::clearData()
+{
     m_users.clear();
     m_user.clear();
+    m_share.clear();
+    m_requestedUserId = 0;
     emit usersChanged();
     emit userChanged();
-    emit signedInChanged();
+    emit shareChanged();
 }
 
 void PanelUiController::loadUsers(const QString &query)
 {
     m_lastQuery = query;
-    QUrlQuery q;
-    if (!query.trimmed().isEmpty()) {
-        q.addQueryItem("q", query.trimmed());
-    }
-    m_api->get("/api/admin/users?" + q.toString(QUrl::FullyEncoded), handle([this](const PanelApiClient::Result &r) {
+    // Percent-encode every reserved character: the server would read a literal '+' as a space.
+    const QString trimmed = query.trimmed();
+    const QString q = trimmed.isEmpty() ? QString() : "q=" + QString::fromLatin1(QUrl::toPercentEncoding(trimmed));
+    m_api->get("/api/admin/users?" + q, handle([this](const PanelApiClient::Result &r) {
                    m_users = r.body.array().toVariantList();
                    emit usersChanged();
                }));
@@ -130,7 +152,16 @@ void PanelUiController::createUser(const QString &name, int maxConfigs, const QS
 
 void PanelUiController::loadUser(int id)
 {
-    m_api->get(QString("/api/admin/users/%1").arg(id), handle([this](const PanelApiClient::Result &r) {
+    // Never show (and act on) the previously opened user while the new one loads.
+    if (m_user.value("id").toInt() != id) {
+        m_user.clear();
+        emit userChanged();
+    }
+    m_requestedUserId = id;
+    m_api->get(QString("/api/admin/users/%1").arg(id), handle([this, id](const PanelApiClient::Result &r) {
+                   if (id != m_requestedUserId) {
+                       return; // another user was opened meanwhile
+                   }
                    m_user = r.body.object().toVariantMap();
                    emit userChanged();
                }));
@@ -138,8 +169,8 @@ void PanelUiController::loadUser(int id)
 
 void PanelUiController::reloadUser()
 {
-    if (m_user.contains("id")) {
-        loadUser(m_user.value("id").toInt());
+    if (m_requestedUserId != 0) {
+        loadUser(m_requestedUserId);
     }
 }
 
@@ -204,9 +235,13 @@ void PanelUiController::showConfig(int configId)
 {
     m_api->get(QString("/api/admin/configs/%1").arg(configId), handle([this](const PanelApiClient::Result &r) {
                    const QJsonObject config = r.body.object();
-                   QVariantMap share = config.value("export").toObject().toVariantMap();
+                   const QJsonObject exported = config.value("export").toObject();
+                   QVariantMap share = exported.toVariantMap();
                    share["name"] = config.value("name").toString();
                    share["available"] = config.value("export").isObject();
+                   const QByteArray svg = exported.value("qr_svg").toString().toUtf8();
+                   share["qr"] = svg.isEmpty() ? QString()
+                                               : "data:image/svg;base64," + QString::fromLatin1(svg.toBase64());
                    m_share = share;
                    emit shareChanged();
                }));

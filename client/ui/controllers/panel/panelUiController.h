@@ -72,6 +72,7 @@ private:
     void setBusy(bool busy);
     void setError(const PanelApiClient::Result &result);
     void reloadUser();
+    void clearData();
 
     PanelApiClient *m_api;
     bool m_busy = false;
@@ -83,6 +84,7 @@ private:
     QString m_inviteKey;
     QVariantMap m_share;
     QString m_lastQuery;
+    int m_requestedUserId = 0;
 };
 
 #endif // PANELUICONTROLLER_H

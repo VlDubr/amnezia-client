@@ -22,6 +22,18 @@ namespace
         }
         return url;
     }
+
+    // Plain http is accepted only for a panel on this machine: elsewhere it would send the password and the
+    // admin token in clear text.
+    bool isInsecureRemote(const QString &url)
+    {
+        const QUrl parsed(url);
+        if (parsed.scheme() != QLatin1String("http")) {
+            return false;
+        }
+        const QString host = parsed.host();
+        return host != QLatin1String("localhost") && host != QLatin1String("127.0.0.1") && host != QLatin1String("::1");
+    }
 } // namespace
 
 PanelApiClient::PanelApiClient(SecureAppSettingsRepository *appSettings, QNetworkAccessManager *network,
@@ -42,11 +54,19 @@ bool PanelApiClient::hasToken() const
 
 void PanelApiClient::signIn(const QString &url, const QString &login, const QString &password, const Callback &done)
 {
-    m_appSettings->setPanelUrl(normalizedBaseUrl(url));
-    m_appSettings->setPanelToken(QString());
+    const QString base = normalizedBaseUrl(url);
+    if (isInsecureRemote(base)) {
+        Result result;
+        result.errorCode = QStringLiteral("insecure_url");
+        done(result);
+        return;
+    }
     QJsonObject body { { "login", login }, { "password", password }, { "role", "admin" } };
-    send("POST", "/api/auth/login", &body, [this, done](const Result &result) {
+    // The address and the token are stored only after a successful sign-in, so a mistyped address does not
+    // sign the admin out of a working panel.
+    sendTo(base, QString(), "POST", "/api/auth/login", &body, [this, base, done](const Result &result) {
         if (result.ok()) {
+            m_appSettings->setPanelUrl(base);
             m_appSettings->setPanelToken(result.body.object().value("token").toString());
         }
         done(result);
@@ -83,18 +103,24 @@ void PanelApiClient::remove(const QString &path, const Callback &done)
 
 void PanelApiClient::send(const QByteArray &method, const QString &path, const QJsonObject *body, const Callback &done)
 {
-    QNetworkRequest request(QUrl(baseUrl() + path));
+    sendTo(baseUrl(), m_appSettings->panelToken(), method, path, body, done);
+}
+
+void PanelApiClient::sendTo(const QString &base, const QString &token, const QByteArray &method, const QString &path,
+                            const QJsonObject *body, const Callback &done)
+{
+    QNetworkRequest request(QUrl(base + path));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     request.setRawHeader("Accept", "application/json");
     request.setTransferTimeout(requestTimeoutMs);
-    const QString token = m_appSettings->panelToken();
     if (!token.isEmpty()) {
         request.setRawHeader("Authorization", "Bearer " + token.toUtf8());
     }
     const QByteArray payload = body ? QJsonDocument(*body).toJson(QJsonDocument::Compact) : QByteArray();
     QNetworkReply *reply = m_network->sendCustomRequest(request, method, payload);
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply, done]() {
+    const bool withToken = !token.isEmpty();
+    connect(reply, &QNetworkReply::finished, this, [this, reply, done, withToken]() {
         reply->deleteLater();
         Result result;
         result.status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
@@ -109,7 +135,7 @@ void PanelApiClient::send(const QByteArray &method, const QString &path, const Q
             result.errorCode = error.value("code").toString(QStringLiteral("http_%1").arg(result.status));
             result.errorMessage = error.value("message").toString(reply->errorString());
             const bool roleLost = result.status == 403 && result.errorCode == QLatin1String("forbidden");
-            if (result.status == 401 || roleLost) {
+            if (withToken && (result.status == 401 || roleLost)) {
                 m_appSettings->setPanelToken(QString());
                 emit sessionExpired();
             }
