@@ -64,3 +64,16 @@ async def test_a_login_used_by_both_an_admin_and_a_user_stops_the_migration(pg_u
     await _run(url, "INSERT INTO admins (login, password_hash) VALUES ('ivan', 'h')")
     with pytest.raises(Exception, match="ivan"):
         await asyncio.to_thread(command.upgrade, alembic_config(url), "head")
+
+
+async def test_downgrade_restores_the_admins_table(pg_url):
+    url = await _fresh_database(pg_url, "mig0003_down")
+    await asyncio.to_thread(command.upgrade, alembic_config(url), "head")
+    await _run(url, "INSERT INTO users (role, display_name, max_configs, login, password_hash) "
+                    "VALUES ('admin', 'root', 0, 'root', 'h-root'), ('user', 'Ivan', 3, 'ivan', 'h-ivan')")
+    await asyncio.to_thread(command.downgrade, alembic_config(url), "0002")
+    assert [tuple(r) for r in await _run(url, "SELECT login, password_hash FROM admins")] == [("root", "h-root")]
+    assert [r.login for r in await _run(url, "SELECT login FROM users")] == ["ivan"]
+    await asyncio.to_thread(command.upgrade, alembic_config(url), "head")
+    rows = await _run(url, "SELECT login, role FROM users ORDER BY login")
+    assert [tuple(r) for r in rows] == [("ivan", "user"), ("root", "admin")]

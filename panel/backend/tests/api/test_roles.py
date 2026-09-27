@@ -79,3 +79,23 @@ async def test_admin_has_no_user_cabinet_but_can_change_the_password(db, client,
     r = await client.post("/api/me/password", json={"old": ADMIN_PASSWORD, "new": new}, headers=bearer(admin_token))
     assert r.status_code == 204
     assert (await _login(client, "admin", new)).json()["role"] == "admin"
+
+
+async def test_role_cannot_be_chosen_at_registration_or_creation(db, client, admin_token):
+    _, key = await make_user(db)
+    r = await client.post("/api/auth/invite/redeem",
+                          json={"key": key, "login": "mallory", "password": USER_PASSWORD, "role": "admin"})
+    client.cookies.clear()
+    assert r.status_code == 200 and r.json()["role"] == "user"
+    r = await client.post("/api/admin/users", json={"display_name": "Eve", "max_configs": 1, "role": "admin"},
+                          headers=bearer(admin_token))
+    assert r.status_code == 201
+    roles = (await db.execute(select(User.login, User.role).where(User.role == "admin"))).all()
+    assert roles == [("admin", "admin")]
+
+
+async def test_deleting_an_account_ends_its_sessions(db, client):
+    user, token = await registered_user(db, client)
+    await db.delete(user)
+    await db.commit()
+    assert (await client.get("/api/auth/session", headers=bearer(token))).status_code == 401
