@@ -44,9 +44,11 @@ services:
       - "443:443/udp"
     environment:
       PANEL_DOMAIN: ${PANEL_DOMAIN:?set PANEL_DOMAIN in .env}
+      PANEL_TLS: ${PANEL_TLS:-acme}
     volumes:
       - caddy_data:/data
       - caddy_config:/config
+      - ./certs:/certs:ro  # used only with PANEL_TLS=self-signed
     depends_on:
       - backend
 

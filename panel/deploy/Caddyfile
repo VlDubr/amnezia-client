@@ -1,8 +1,25 @@
+{
+	# Clients that connect by IP address send no SNI: answer them with the panel's certificate.
+	default_sni {$PANEL_DOMAIN}
+}
+
+# PANEL_TLS=acme (default): a public certificate from Let's Encrypt for the domain in PANEL_DOMAIN.
+(tls-acme) {
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+}
+
+# PANEL_TLS=self-signed: the certificate made by gen-self-signed-cert.sh (PANEL_DOMAIN may be an IP address).
+# No HSTS here: it would stop browsers from letting the visitor accept the certificate.
+(tls-self-signed) {
+	tls /certs/panel.crt /certs/panel.key
+}
+
 {$PANEL_DOMAIN} {
+	import tls-{$PANEL_TLS:acme}
+
 	encode zstd gzip
 
 	header {
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
 		Referrer-Policy "no-referrer"
