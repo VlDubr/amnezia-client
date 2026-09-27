@@ -193,3 +193,17 @@ async def test_cli_create_admin(pg_url, db, monkeypatch):
 
     assert (await db.execute(select(Admin.login))).scalar_one() == "root"
     assert (await db.execute(select(User))).first() is None
+
+
+async def test_redeem_race_on_the_same_login_is_a_clean_409(db, client, monkeypatch):
+    """Two invites redeemed at once with one login: both pass the check, the second insert hits the unique index."""
+    import app.api.auth as auth_api
+    await registered_user(db, client, login_="ivan")
+    _, key = await make_user(db, display_name="Other")
+
+    async def not_taken(*a, **k):
+        return False
+    monkeypatch.setattr(auth_api, "_login_taken", not_taken)
+    r = await client.post("/api/auth/invite/redeem", json={"key": key, "login": "ivan", "password": USER_PASSWORD})
+    assert r.status_code == 409 and r.json()["code"] == "login_taken"
+    assert (await client.post("/api/auth/invite/check", json={"key": key})).status_code == 200

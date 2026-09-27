@@ -224,3 +224,14 @@ async def test_full_server_gets_a_clear_error(db, client, admin_token, app, fake
     r = await _create(client, token, server["id"])
     assert r.status_code == 409 and r.json()["code"] == "server_full"
     assert await _count(db, uid) == 0
+
+
+async def test_assign_to_a_user_being_deleted_is_refused(db, client, admin_token, app, fake_remote):
+    server, uid, token = await _setup(db, client, admin_token, app)
+    assert (await _create(client, token, server["id"])).status_code == 201
+    r = await client.delete(f"/api/admin/users/{uid}", headers=bearer(admin_token))
+    assert r.json() == {"deleting": True}
+    orphans = (await client.get("/api/admin/configs?orphan=true", headers=bearer(admin_token))).json()
+    r = await client.post(f"/api/admin/configs/{orphans[0]['id']}/assign", json={"user_id": uid},
+                          headers=bearer(admin_token))
+    assert r.status_code == 403 and r.json()["code"] == "user_blocked"

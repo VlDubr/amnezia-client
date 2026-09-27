@@ -134,6 +134,8 @@ async def admin_delete(config_id: int, admin: AdminDep, db: Db, clock: ClockDep)
 @admin_router.post("/configs/{config_id}/assign")
 async def admin_assign(config_id: int, body: AssignIn, request: Request, admin: AdminDep, db: Db) -> dict:
     user = await lock_user(db, body.user_id)
+    if user.deleting_at is not None:
+        raise ApiError(403, "user_blocked", "the account is being removed")
     cfg, server, _ = await _load(db, config_id)
     if cfg.user_id != user.id:
         await ensure_below_limit(db, user)

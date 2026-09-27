@@ -5,6 +5,7 @@ from typing import Literal
 from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.audit import audit
@@ -119,6 +120,10 @@ async def _find_invite(db: AsyncSession, key: str) -> InviteKey:
     return invite
 
 
+async def _login_taken(db: AsyncSession, login: str) -> bool:
+    return (await db.execute(select(User.id).where(User.login == login))).first() is not None
+
+
 @router.post("/invite/check")
 async def invite_check(body: InviteCheckIn, request: Request, db: Db) -> dict:
     check_rate(request, "invite_ip", client_ip(request))
@@ -135,13 +140,16 @@ async def invite_redeem(body: InviteRedeemIn, request: Request, response: Respon
         raise ApiError(422, "login_invalid", "login must be 3-64 characters: letters, digits, '.', '_' or '-'")
     user = await db.get(User, invite.user_id)
     raise_password_errors(body.password, [body.login, user.display_name])
-    taken = (await db.execute(select(User.id).where(User.login == body.login))).first()
-    if taken:
+    if await _login_taken(db, body.login):
         raise ApiError(409, "login_taken", "this login is already taken")
     user.login = body.login
     user.password_hash = hash_password(body.password)
     invite.used_at = clock.now()
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError as e:  # another invite took the same login after our check
+        await db.rollback()
+        raise ApiError(409, "login_taken", "this login is already taken") from e
     out = await start_session(db, response, "user", user.id, clock, settings.cookie_secure)
     audit(db, f"user:{user.id}", "invite_redeem", f"user:{user.id}", ip=client_ip(request))
     await db.commit()
