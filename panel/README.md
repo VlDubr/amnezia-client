@@ -1,5 +1,7 @@
 # Amnezia Panel
 
+English | [Русский](README_RU.md)
+
 A web panel for self-hosted Amnezia servers.
 
 What administrators can do:
@@ -45,7 +47,7 @@ You need a Linux VPS with Docker and the compose plugin, plus a DNS name that po
 1. Get the code:
 
    ```bash
-   git clone https://github.com/amnezia-vpn/amnezia-client.git
+   git clone https://github.com/VlDubr/amnezia-client.git
    cd amnezia-client/panel/deploy
    ```
 
@@ -55,10 +57,10 @@ You need a Linux VPS with Docker and the compose plugin, plus a DNS name that po
    cp .env.example .env
    ```
 
-   In `.env`, set `PANEL_DOMAIN`, `POSTGRES_PASSWORD` and `PANEL_TZ`, and generate the master key:
+   In `.env`, set `PANEL_DOMAIN`, `POSTGRES_PASSWORD` and `PANEL_TZ`. Generate the master key and put it into the `PANEL_MASTER_KEY=` line:
 
    ```bash
-   echo "PANEL_MASTER_KEY=$(openssl rand -base64 32)" >> .env
+   openssl rand -base64 32
    ```
 
    > **Warning:** `PANEL_MASTER_KEY` encrypts the SSH credentials of your servers and the private keys of all configs in the database. Store a copy outside the server. Without it, a database backup cannot be restored, and every user will need new configs.
@@ -75,13 +77,13 @@ You need a Linux VPS with Docker and the compose plugin, plus a DNS name that po
    docker compose exec backend python -m app.cli create-admin --login admin
    ```
 
-Open `https://<PANEL_DOMAIN>` and sign in as the administrator.
+Open `https://<PANEL_DOMAIN>/admin/login` and sign in as the administrator. The page at `https://<PANEL_DOMAIN>/` is the sign-in for users; it does not accept administrator accounts.
 
 ## Add a server
 
 In the admin UI (or with `POST /api/admin/servers`), give the server's address, the SSH user and a password or private key.
 
-The panel stores the server's host key on first contact. It then imports the AmneziaWG and WireGuard containers it finds, and the clients already on them. Imported clients appear under "Configs without owner" and keep working. Assign them to users when you are ready.
+The panel stores the server's host key on first contact. It then imports every supported container it finds (see the table above) and the clients already on them. Imported clients appear under "Configs without owner" and keep working. Assign them to users when you are ready.
 
 The SSH user needs `sudo` without a password, as for the desktop app.
 
@@ -154,4 +156,25 @@ npx playwright install chromium
 npm run e2e        # browser tests: real backend with an in-memory VPN server + the production build
 ```
 
-The user cabinet is at `/`; the administrator area is at `/admin`.
+The user cabinet is at `/`; the administrator area is at `/admin` (sign in at `/admin/login`).
+
+### Try it locally without VPN servers
+
+The e2e launcher runs the real backend with an in-memory AmneziaWG server in place of every VPN server, so any address and password work when you add a server. Docker must be running.
+
+```bash
+cd panel/backend
+uv run python -m tests.e2e_server      # API on http://127.0.0.1:8765, a temporary database
+```
+
+It creates the administrator `admin` with the password `Adm1n-Pa55w0rd!xyz`. The data is lost when it stops.
+
+In a second terminal:
+
+```bash
+cd panel/web
+npm ci
+PANEL_API=http://127.0.0.1:8765 npm run dev   # PowerShell: $env:PANEL_API="http://127.0.0.1:8765"; npm run dev
+```
+
+Open `http://localhost:5173/admin/login`. In the AmneziaVPN app, use the panel address `http://127.0.0.1:8765` (plain http is accepted only for this machine).
