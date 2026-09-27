@@ -134,12 +134,12 @@ describe("account page", () => {
 
   it("shows a wrong current password", async () => {
     userSession(me(), []);
-    server.use(http.post("/api/me/password", () => err(403, "invalid_credentials")));
+    server.use(http.post("/api/me/password", () => err(403, "wrong_password")));
     renderApp("/account");
     await userEvent.type(await screen.findByLabelText(/Текущий пароль/), "wrong");
     await userEvent.type(screen.getByLabelText(/^Новый пароль/), "Vq7#mZ2!rT9p@Lx");
     await userEvent.type(screen.getByLabelText(/Повторите пароль/), "Vq7#mZ2!rT9p@Lx");
     await userEvent.click(screen.getByRole("button", { name: "Сохранить" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Неверный логин или пароль");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Текущий пароль указан неверно");
   });
 });

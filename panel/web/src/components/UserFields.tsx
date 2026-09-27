@@ -1,7 +1,7 @@
 import { NumberInput, Textarea, TextInput } from "@mantine/core";
 import { useTranslation } from "react-i18next";
 
-export type UserFieldValues = { display_name: string; note: string; max_configs: number; expires_on: string };
+export type UserFieldValues = { display_name: string; note: string; max_configs: number | ""; expires_on: string };
 
 export const EMPTY_USER: UserFieldValues = { display_name: "", note: "", max_configs: 3, expires_on: "" };
 
@@ -21,7 +21,8 @@ export function UserFields({ value, onChange }: { value: UserFieldValues; onChan
       <NumberInput
         label={t("admin.max_configs")}
         value={value.max_configs}
-        onChange={(v) => set({ max_configs: typeof v === "number" ? v : Number(v) || 0 })}
+        // A cleared field stays empty, so the required check stops the form instead of saving 0.
+        onChange={(v) => set({ max_configs: typeof v === "number" ? v : "" })}
         min={0}
         max={1000}
         allowDecimal={false}

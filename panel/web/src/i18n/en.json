@@ -197,6 +197,7 @@
     "bad_request": "Bad request",
     "method_not_allowed": "Action not available",
     "error": "Server error",
-    "server_full": "The server has no room for another config. Choose another server."
+    "server_full": "The server has no room for another config. Choose another server.",
+    "wrong_password": "The current password is wrong"
   }
 }

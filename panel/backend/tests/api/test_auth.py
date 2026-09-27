@@ -159,7 +159,7 @@ async def test_change_password_revokes_other_sessions(db, client):
 async def test_change_password_checks_old_and_policy(db, client):
     _, token = await registered_user(db, client)
     r = await client.post("/api/me/password", json={"old": "wrong", "new": "N3w-Pa55w0rd!asd"}, headers=bearer(token))
-    assert r.status_code == 403 and r.json()["code"] == "invalid_credentials"
+    assert r.status_code == 403 and r.json()["code"] == "wrong_password"
     r = await client.post("/api/me/password", json={"old": USER_PASSWORD, "new": "short"}, headers=bearer(token))
     assert r.status_code == 422 and r.json()["code"] == "password_too_short"
 

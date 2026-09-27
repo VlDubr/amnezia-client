@@ -43,7 +43,7 @@ async def me(principal: UserDep, db: Db, clock: ClockDep, settings: SettingsDep)
 async def change_password(body: PasswordIn, principal: UserDep, db: Db, clock: ClockDep) -> None:
     user = await db.get(User, principal.subject_id)
     if not verify_password(user.password_hash or "", body.old):
-        raise ApiError(403, "invalid_credentials", "current password is wrong")
+        raise ApiError(403, "wrong_password", "current password is wrong")
     raise_password_errors(body.new, [user.login or "", user.display_name])
     user.password_hash = hash_password(body.new)
     await db.execute(

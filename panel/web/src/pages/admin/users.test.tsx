@@ -114,6 +114,22 @@ describe("admin user page", () => {
     await waitFor(() => expect(body).toEqual({ display_name: "Anna", note: "", max_configs: 7, expires_on: null }));
   });
 
+  it("does not save a cleared limit as zero", async () => {
+    userPage(detail());
+    let body: unknown = null;
+    server.use(
+      http.patch("/api/admin/users/1", async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(user());
+      }),
+    );
+    renderApp("/admin/users/1");
+    await userEvent.clear(await screen.findByLabelText(/Лимит конфигов/));
+    await userEvent.click(screen.getByRole("button", { name: "Сохранить" }));
+    await new Promise((r) => setTimeout(r, 100));
+    expect(body).toBeNull();
+  });
+
   it("blocks, unblocks and deletes the user", async () => {
     const calls: string[] = [];
     userPage(detail());
