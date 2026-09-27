@@ -2,7 +2,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,6 +43,13 @@ class ContainerIn(BaseModel):
     container: str
     port: str | None = Field(default=None, pattern=r"^\d{1,5}$")
     force: bool = False  # reinstall over an existing container: new server keys, all its configs stop working
+
+    @field_validator("port")
+    @classmethod
+    def _port_in_range(cls, v: str | None) -> str | None:
+        if v is not None and not 1 <= int(v) <= 65535:
+            raise ValueError("port must be between 1 and 65535")
+        return v
 
 
 def _iso(dt: datetime | None) -> str | None:

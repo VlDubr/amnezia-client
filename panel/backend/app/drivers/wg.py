@@ -115,7 +115,7 @@ class WgFamilyDriver:
         values = conf.interface_values()
         address, _, cidr = values.get("Address", "10.8.1.0/24").partition("/")
         params: dict[str, Any] = {
-            "port": values.get("ListenPort", ""),
+            "port": values.get("ListenPort") or self.default_port,
             "subnet_address": address,
             "subnet_cidr": cidr or "24",
             "server_public_key": await self._read_key(remote, "wireguard_server_public_key.key"),

@@ -175,3 +175,13 @@ async def test_render_wireguard_uses_wireguard_section():
     doc = decode_vpn_key(out.vpn_key)
     client = json.loads(doc["containers"][0]["wireguard"]["last_config"])
     assert client["persistent_keep_alive"] == "25" and client["port"] == 51820
+
+
+async def test_missing_listen_port_falls_back_to_the_default_port():
+    r = wg_remote()
+    r.files[(WG, WG_CONF)] = "[Interface]\nPrivateKey = x\nAddress = 10.8.1.0/24\n"
+    d = get_driver(WG)
+    params = await d.read_params(r)
+    assert params["port"] == d.default_port
+    m = await d.create_material(r, params, set())
+    d.render(m, params, "vpn.example.com", ("1.1.1.1", "1.0.0.1"), "NL")  # used to fail on int("")

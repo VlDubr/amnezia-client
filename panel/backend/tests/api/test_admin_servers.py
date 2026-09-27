@@ -117,3 +117,11 @@ async def test_installable_protocols(client, admin_token):
     assert {"amnezia-awg2", "amnezia-wireguard", "amnezia-xray", "amnezia-openvpn", "amnezia-socks5proxy",
             "amnezia-telemt", "amnezia-mtproxy"} <= set(names)
     assert "amnezia-ipsec" not in names and names["amnezia-xray"] == "XRay"
+
+
+async def test_install_port_must_be_a_real_port(client, admin_token, app, fake_remote):
+    s = await add_server(client, admin_token, app)
+    for port in ("0", "70000"):
+        r = await client.post(f"/api/admin/servers/{s['id']}/containers",
+                              json={"container": "amnezia-wireguard", "port": port}, headers=bearer(admin_token))
+        assert r.status_code == 422, port
