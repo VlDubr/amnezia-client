@@ -149,3 +149,23 @@ async def test_jobs_api(db, client, admin_token):
     assert r.status_code == 200
     assert r.json() == {"id": job.id, "kind": "reconcile", "status": "queued", "attempts": 0, "last_error": None}
     assert (await client.get("/api/jobs/999", headers=bearer(admin_token))).status_code == 404
+
+
+async def test_worker_survives_its_server_being_deleted_mid_job(sessionmaker, db, clock):
+    """Deleting a server cascades to its jobs; the running job's outcome then has no row to land in."""
+    async def drop_server(then_raise):
+        async def handler(session, job):
+            async with sessionmaker() as other:
+                await other.delete(await other.get(Server, server_id))
+                await other.commit()
+            if then_raise:
+                raise RuntimeError("ssh down")
+        return handler
+
+    for then_raise in (True, False):
+        server = await _server(db)
+        server_id = server.id
+        await enqueue(db, "x", server_id=server_id)
+        await db.commit()
+        assert await Worker(sessionmaker, {"x": await drop_server(then_raise)}, clock).run_once() is True
+    assert (await db.execute(select(Job))).first() is None

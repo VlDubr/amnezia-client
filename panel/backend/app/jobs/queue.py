@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.exc import StaleDataError
 
 from app.db.models import Job, Server
 
@@ -54,10 +55,15 @@ async def finish(db: AsyncSession, job: Job, now: datetime) -> None:
     job.status = "done"
     job.finished_at = now
     job.last_error = None
-    await db.commit()
+    try:
+        await db.commit()
+    except StaleDataError:  # the job was deleted with its server while it ran
+        await db.rollback()
 
 
-async def fail(db: AsyncSession, job: Job, error: str, now: datetime, retry: bool = True) -> None:
+async def fail(db: AsyncSession, job: Job | None, error: str, now: datetime, retry: bool = True) -> None:
+    if job is None:  # deleted with its server while it ran
+        return
     job.attempts += 1
     job.last_error = error[:2000]
     if retry and job.attempts < MAX_ATTEMPTS:
@@ -71,8 +77,10 @@ async def fail(db: AsyncSession, job: Job, error: str, now: datetime, retry: boo
     await db.commit()
 
 
-async def postpone(db: AsyncSession, job: Job, until: datetime) -> None:
+async def postpone(db: AsyncSession, job: Job | None, until: datetime) -> None:
     """Puts a claimed job back without counting an attempt (its server is busy)."""
+    if job is None:
+        return
     job.status = "queued"
     job.locked_at = None
     job.run_after = until
