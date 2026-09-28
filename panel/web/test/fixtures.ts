@@ -41,7 +41,9 @@ export function me(over: Partial<Me> = {}): Me {
   };
 }
 
-export const SERVERS: MyServer[] = [{ id: 10, name: "nl-1", containers: [{ container: "amnezia-awg2", title: "AmneziaWG" }] }];
+export const SERVERS: MyServer[] = [
+  { id: 10, name: "nl-1", containers: [{ container: "amnezia-awg2", title: "AmneziaWG" }], load: "low", recommended: true },
+];
 
 export function err(status: number, code: string) {
   return HttpResponse.json({ code, message: code }, { status });

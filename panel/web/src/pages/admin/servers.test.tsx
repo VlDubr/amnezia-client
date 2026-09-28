@@ -4,6 +4,7 @@ import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import type { ServerInfo } from "../../api/types";
 import { adminSession, config, err } from "../../../test/fixtures";
+import { EMPTY_LOAD } from "../../../test/load";
 import { server } from "../../../test/msw";
 import { renderApp } from "../../../test/render";
 
@@ -12,7 +13,8 @@ function srv(over: Partial<ServerInfo> = {}): ServerInfo {
     id: 10, name: "nl-1", host: "203.0.113.10", ssh_port: 22, ssh_user: "root", enabled_for_users: true,
     host_key: "ssh-ed25519 AAAA", imported_at: "2026-09-26T00:00:00Z", last_ok_at: "2026-09-26T00:00:00Z",
     last_error: null, created_at: "2026-09-26T00:00:00Z", configs_count: 2,
-    containers: [{ container: "amnezia-awg2", title: "AmneziaWG", port: "55424" }], ...over,
+    containers: [{ container: "amnezia-awg2", title: "AmneziaWG", port: "55424" }],
+    load: "medium", load_pct: 62, bandwidth_mbps: 1000, expected_clients: null, metrics_iface: null, ...over,
   };
 }
 
@@ -32,6 +34,7 @@ describe("servers", () => {
     renderApp("/admin/servers");
     const row = (await screen.findByText("nl-1")).closest("tr")!;
     expect(within(row).getByText("AmneziaWG")).toBeInTheDocument();
+    expect(within(row).getByText("Средняя нагрузка")).toBeInTheDocument();
     expect(screen.getByText("timeout")).toBeInTheDocument();
   });
 
@@ -86,6 +89,40 @@ describe("server page", () => {
         HttpResponse.json([{ container: "amnezia-awg2", title: "AmneziaWG" }, { container: "amnezia-xray", title: "XRay" }])),
     );
   }
+
+  it("shows the load section with hardware, recommendations and a capacity form", async () => {
+    page(srv());
+    let patched: unknown = null;
+    server.use(
+      http.get("/api/admin/servers/10/load", () => HttpResponse.json({
+        ...EMPTY_LOAD,
+        specs: { cpu_model: "AMD EPYC 7B13", cores: 2, mem_bytes: 2147483648, disk_bytes: 42949672960, os: "Ubuntu 24.04",
+                 kernel: "6.8", iface: "eth0", link_mbps: 1000, uptime_s: 90000 },
+        level: "medium", utilisation: 62,
+        current: { ts: "2026-09-28T11:59:00Z", cpu: 62, mem: 40, disk: 30, load1: 0.5, rx: 120, tx: 80, clients: 7, iface: "eth0" },
+        capacity: { bandwidth_mbps: 1000, expected_clients: 50, metrics_iface: null },
+        hints: { link_mbps: 1000, peak_mbps_7d: 640 },
+        series: [{ ts: "2026-09-28T11:58:00Z", cpu: 60, mem: 40, rx: 100, tx: 80, clients: 7 },
+                 { ts: "2026-09-28T11:59:00Z", cpu: null, mem: null, rx: null, tx: null, clients: null }],
+        recommendations: [{ code: "disk_full", severity: "warning", params: { pct: 91 } },
+                          { code: "untracked_protocols", severity: "info", params: { protocols: ["IKEv2"] } }],
+        untracked_protocols: ["IKEv2"],
+      })),
+      http.patch("/api/admin/servers/10", async ({ request }) => {
+        patched = await request.json();
+        return HttpResponse.json(srv());
+      }),
+    );
+    renderApp("/admin/servers/10");
+    expect(await screen.findByText(/AMD EPYC 7B13/)).toBeInTheDocument();
+    expect(screen.getByText(/Диск заполнен на 91%/)).toBeInTheDocument();
+    expect(screen.getByText(/Активность клиентов IKEv2 не учитывается/)).toBeInTheDocument();
+    expect(screen.getByText(/Пик за 7 дней: 640 Мбит\/с/)).toBeInTheDocument();
+    const clients = screen.getByLabelText(/Расчётное число активных конфигов/);
+    await userEvent.clear(clients);
+    await userEvent.click(screen.getByRole("button", { name: "Сохранить ёмкость" }));
+    await waitFor(() => expect(patched).toEqual({ bandwidth_mbps: 1000, expected_clients: null, metrics_iface: null }));
+  });
 
   it("syncs and toggles availability", async () => {
     page(srv());

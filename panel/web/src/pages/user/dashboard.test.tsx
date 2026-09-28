@@ -7,6 +7,22 @@ import { server } from "../../../test/msw";
 import { renderApp } from "../../../test/render";
 
 describe("user dashboard", () => {
+  it("shows each server's load in the order given and marks the recommended one", async () => {
+    userSession(me(), [], [
+      { id: 11, name: "de-1", containers: [{ container: "amnezia-awg2", title: "AmneziaWG" }], load: "low", recommended: true },
+      { id: 10, name: "nl-1", containers: [{ container: "amnezia-awg2", title: "AmneziaWG" }], load: "high", recommended: false },
+      { id: 12, name: "fi-1", containers: [{ container: "amnezia-awg2", title: "AmneziaWG" }], load: "unknown", recommended: false },
+    ]);
+    renderApp("/");
+    const cards = await screen.findAllByTestId("server-card");
+    expect(cards.map((c) => within(c).getByTestId("server-name").textContent)).toEqual(["de-1", "nl-1", "fi-1"]);
+    expect(within(cards[0]).getByText("Низкая нагрузка")).toBeInTheDocument();
+    expect(within(cards[0]).getByText("Рекомендуем")).toBeInTheDocument();
+    expect(within(cards[1]).getByText("Высокая нагрузка")).toBeInTheDocument();
+    expect(within(cards[2]).getByText("Нет данных о нагрузке")).toBeInTheDocument();
+    expect(screen.getAllByText("Рекомендуем")).toHaveLength(1);
+  });
+
   it("shows access period, limit usage and configs", async () => {
     userSession(me(), [config()]);
     renderApp("/");

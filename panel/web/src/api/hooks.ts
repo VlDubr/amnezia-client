@@ -9,6 +9,7 @@ import type {
   Me,
   MyServer,
   ServerInfo,
+  ServerLoad,
   TrafficReport,
 } from "./types";
 
@@ -20,6 +21,7 @@ export const keys = {
   user: (id: number) => ["admin", "user", id] as const,
   servers: ["admin", "servers"] as const,
   server: (id: number) => ["admin", "server", id] as const,
+  serverLoad: (id: number, range: string) => ["admin", "server", id, "load", range] as const,
   orphans: ["admin", "orphans"] as const,
   traffic: (params: string) => ["admin", "traffic", params] as const,
   audit: ["admin", "audit"] as const,
@@ -33,6 +35,12 @@ export const useUsers = (params: URLSearchParams) =>
   useQuery({ queryKey: keys.users(params.toString()), queryFn: () => api<AdminUser[]>(`/api/admin/users?${params}`) });
 export const useUser = (id: number) =>
   useQuery({ queryKey: keys.user(id), queryFn: () => api<AdminUserDetail>(`/api/admin/users/${id}`) });
+export const useServerLoad = (id: number, range: "24h" | "7d") =>
+  useQuery({
+    queryKey: keys.serverLoad(id, range),
+    queryFn: () => api<ServerLoad>(`/api/admin/servers/${id}/load?range=${range}`),
+    refetchInterval: 60_000, // new samples arrive once a minute
+  });
 export const useServers = () => useQuery({ queryKey: keys.servers, queryFn: () => api<ServerInfo[]>("/api/admin/servers") });
 export const useServer = (id: number) =>
   useQuery({ queryKey: keys.server(id), queryFn: () => api<ServerInfo>(`/api/admin/servers/${id}`) });

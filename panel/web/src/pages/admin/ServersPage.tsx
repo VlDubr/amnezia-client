@@ -8,6 +8,7 @@ import { Link } from "react-router";
 import { api } from "../../api/client";
 import { keys, useAction, useServers } from "../../api/hooks";
 import type { ServerInfo } from "../../api/types";
+import { LoadBadge } from "../../components/LoadBadge";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { JobStatus } from "../../components/JobStatus";
 import { formatDateTime } from "../../lib/format";
@@ -76,6 +77,9 @@ export default function ServersPage() {
                         off
                       </Badge>
                     )}
+                    <Group mt={4}>
+                      <LoadBadge level={s.load} size="xs" />
+                    </Group>
                   </Table.Td>
                   <Table.Td>{s.host}</Table.Td>
                   <Table.Td>

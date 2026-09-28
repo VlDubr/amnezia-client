@@ -29,6 +29,7 @@ const SERVER_INFO: ServerInfo = {
   host_key: "ssh-ed25519 AAAA", imported_at: "2026-09-26T00:00:00Z", last_ok_at: "2026-09-26T00:00:00Z",
   last_error: null, created_at: "2026-09-26T00:00:00Z", configs_count: 2,
   containers: [{ container: "amnezia-awg2", title: "AmneziaWG", port: "55424" }],
+  load: "low", load_pct: 20, bandwidth_mbps: null, expected_clients: null, metrics_iface: null,
 };
 
 function userPage(d: AdminUserDetail) {

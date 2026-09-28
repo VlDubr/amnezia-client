@@ -5,6 +5,7 @@ import { keys, useAction, useMe, useMyConfigs, useMyServers } from "../../api/ho
 import type { Config } from "../../api/types";
 import { ConfigsTable } from "../../components/ConfigsTable";
 import { confirmAction } from "../../components/confirm";
+import { LoadBadge } from "../../components/LoadBadge";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { useShare } from "../../components/useShare";
 import { formatDate } from "../../lib/format";
@@ -58,10 +59,20 @@ export default function DashboardPage() {
       {servers.data && servers.data.length === 0 && <Text c="dimmed">{t("dashboard.no_servers")}</Text>}
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
         {servers.data?.map((s) => (
-          <Card key={s.id} withBorder padding="md">
-            <Text fw={600} mb="xs">
-              {s.name}
-            </Text>
+          <Card key={s.id} withBorder padding="md" data-testid="server-card">
+            <Group justify="space-between" mb="xs" wrap="nowrap">
+              <Text fw={600} data-testid="server-name">
+                {s.name}
+              </Text>
+              <Group gap={4} wrap="nowrap">
+                {s.recommended && (
+                  <Badge color="teal" size="sm">
+                    {t("load.recommended")}
+                  </Badge>
+                )}
+                <LoadBadge level={s.load} />
+              </Group>
+            </Group>
             <Stack gap="xs">
               {s.containers.map((c) => (
                 <Group key={c.container} justify="space-between" wrap="nowrap">

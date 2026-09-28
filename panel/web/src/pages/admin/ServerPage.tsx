@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { ApiError, api } from "../../api/client";
 import { keys, useAction, useInstallable, useServer } from "../../api/hooks";
 import { confirmAction } from "../../components/confirm";
+import { ServerLoadSection } from "../../components/ServerLoadSection";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { JobStatus } from "../../components/JobStatus";
 import { formatDateTime } from "../../lib/format";
@@ -129,6 +130,8 @@ export default function ServerPage() {
           )}
         </Stack>
       </Card>
+
+      <ServerLoadSection serverId={id} />
 
       <Modal opened={installing} onClose={() => setInstalling(false)} title={t("admin.install")}>
         <Stack>
