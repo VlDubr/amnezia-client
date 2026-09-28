@@ -1,6 +1,7 @@
 """Load sampling (load spec §4): one sample per server and minute, a single sampler owner, bounded work."""
 
 import asyncio
+import contextlib
 import itertools
 import time
 from contextlib import asynccontextmanager
@@ -181,3 +182,78 @@ async def test_cleanup_removes_old_samples_in_batches(db, clock, monkeypatch):
     monkeypatch.setattr(metrics, "CLEANUP_BATCH", 2)
     assert await cleanup_samples(db, now) == 3
     assert len(await _samples(db, sid)) == 2
+
+
+async def test_a_cancelled_tick_stops_its_sampling(db, engine, sessionmaker, clock, monkeypatch):
+    """Final review I1: cancelling the tick (e.g. the shutdown timeout) must not leave samples running."""
+    await _server(db)
+    finished: list[int] = []
+
+    async def slow_sample(sm, sid, factory, clk):
+        await asyncio.sleep(0.5)
+        finished.append(sid)
+
+    monkeypatch.setattr(sampler_module, "sample_server", slow_sample)
+    s = Sampler(engine, sessionmaker, None, clock)
+    try:
+        tick = asyncio.create_task(s.tick())
+        await asyncio.sleep(0.1)
+        tick.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await tick
+        await asyncio.sleep(0.7)
+        assert finished == []
+    finally:
+        await s.release()
+
+
+async def test_a_kick_never_samples_a_server_twice_at_once(db, engine, sessionmaker, clock, monkeypatch):
+    """Final review I2: a kick during a tick must not start a second concurrent sample of the same server."""
+    sid = await _server(db)
+    running: set[int] = set()
+    overlaps: list[int] = []
+
+    async def slow_sample(sm, server_id, factory, clk):
+        if server_id in running:
+            overlaps.append(server_id)
+        running.add(server_id)
+        await asyncio.sleep(0.2)
+        running.discard(server_id)
+
+    monkeypatch.setattr(sampler_module, "sample_server", slow_sample)
+    s = Sampler(engine, sessionmaker, None, clock)
+    try:
+        tick = asyncio.create_task(s.tick())
+        await asyncio.sleep(0.05)
+        s.kick(sid)
+        await tick
+        await asyncio.sleep(0.3)
+        assert overlaps == []
+    finally:
+        await s.release()
+
+
+async def test_a_stalled_leader_connection_counts_as_lost(engine, sessionmaker, clock):
+    """Final review I3: the leadership probe has a deadline."""
+    s = Sampler(engine, sessionmaker, None, clock, watchdog_s=0.1)
+    try:
+        assert await s.acquire()
+
+        class Stalled:
+            async def execute(self, *a, **k):
+                await asyncio.sleep(30)
+
+            async def invalidate(self):
+                pass
+
+            async def close(self):
+                pass
+
+        real = s._leader
+        s._leader = Stalled()
+        started = time.monotonic()
+        assert await s.alive() is False
+        assert time.monotonic() - started < 2 and not s.is_leader
+        await Sampler._discard(real)
+    finally:
+        await s.release()

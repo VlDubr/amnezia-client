@@ -34,6 +34,8 @@ class Sampler:
         self._watchdog_s = watchdog_s
         self._leader: AsyncConnection | None = None
         self._pending: set[asyncio.Task] = set()
+        self._slots = asyncio.Semaphore(concurrency)  # shared by ticks and kicks
+        self._in_flight: set[int] = set()  # a server is never sampled twice at once
 
     @property
     def is_leader(self) -> bool:
@@ -59,9 +61,10 @@ class Sampler:
         if self._leader is None:
             return False
         try:
-            await self._leader.execute(text("SELECT 1"))
+            # A stalled connection must not hold the watchdog: no answer in time counts as a lost lock.
+            await asyncio.wait_for(self._leader.execute(text("SELECT 1")), self._watchdog_s)
             return True
-        except Exception:  # noqa: BLE001 - the lock went with the connection
+        except Exception:  # noqa: BLE001 - the lock went with the connection, or it cannot be trusted
             await self.drop()
             return False
 
@@ -83,22 +86,33 @@ class Sampler:
         if conn is None:
             return
         try:
-            await conn.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": SAMPLER_LOCK_KEY})
+            await asyncio.wait_for(conn.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": SAMPLER_LOCK_KEY}), 5)
             await conn.close()
         except Exception:  # noqa: BLE001
             await self._discard(conn)
 
+    async def _sample_one(self, server_id: int) -> None:
+        if server_id in self._in_flight:
+            return
+        self._in_flight.add(server_id)
+        try:
+            async with self._slots:
+                await sample_server(self._sessionmaker, server_id, self._remote_factory, self._clock)
+        except Exception:
+            log.exception("sampling server %s failed", server_id)
+        finally:
+            self._in_flight.discard(server_id)
+
     async def _sample_all(self, server_ids: list[int]) -> None:
-        slots = asyncio.Semaphore(self._concurrency)
+        await asyncio.gather(*(self._sample_one(i) for i in server_ids))
 
-        async def one(server_id: int) -> None:
-            async with slots:
-                try:
-                    await sample_server(self._sessionmaker, server_id, self._remote_factory, self._clock)
-                except Exception:
-                    log.exception("sampling server %s failed", server_id)
-
-        await asyncio.gather(*(one(i) for i in server_ids))
+    async def _cancel_pending(self) -> None:
+        tasks = list(self._pending)
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await task
 
     async def tick(self) -> None:
         if not await self.acquire() or not await self.alive():
@@ -106,21 +120,26 @@ class Sampler:
         async with self._sessionmaker() as db:
             server_ids = list((await db.execute(select(Server.id).order_by(Server.id))).scalars())
         work = asyncio.create_task(self._sample_all(server_ids))
-        while not work.done():
-            await asyncio.wait({work}, timeout=self._watchdog_s)
-            if not work.done() and not await self.alive():
+        try:
+            while not work.done():
+                await asyncio.wait({work}, timeout=self._watchdog_s)
+                if not work.done() and not await self.alive():
+                    log.warning("sampler lost its database lock; this tick was cancelled")
+                    await self._cancel_pending()
+                    return
+            await work
+        finally:
+            # Also when the tick itself is cancelled (shutdown): no sample may outlive the lock.
+            if not work.done():
                 work.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await work
-                log.warning("sampler lost its database lock; this tick was cancelled")
-                return
-        await work
 
     def kick(self, server_id: int) -> None:
         """Samples a newly added server now instead of at the next tick (only in the owning process)."""
         if self._leader is None:
             return
-        task = asyncio.create_task(sample_server(self._sessionmaker, server_id, self._remote_factory, self._clock))
+        task = asyncio.create_task(self._sample_one(server_id))  # same slots and per-server exclusion as ticks
         self._pending.add(task)
         task.add_done_callback(self._pending.discard)
 
@@ -139,6 +158,5 @@ class Sampler:
                     with contextlib.suppress(TimeoutError):
                         await asyncio.wait_for(stop.wait(), remaining)
         finally:
-            for task in list(self._pending):
-                task.cancel()
+            await self._cancel_pending()
             await self.release()
