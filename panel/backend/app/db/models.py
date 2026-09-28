@@ -7,6 +7,7 @@ from sqlalchemy import (
     CheckConstraint,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -78,6 +79,14 @@ class Server(Base):
     last_ok_at: Mapped[datetime | None] = mapped_column(TS)
     last_error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = _created()
+    # Load monitoring: capacities set by the admin, hardware facts, and the last sampling failure (admin only).
+    bandwidth_mbps: Mapped[int | None] = mapped_column(Integer)
+    expected_clients: Mapped[int | None] = mapped_column(Integer)
+    metrics_iface: Mapped[str | None] = mapped_column(String(15))
+    specs_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    specs_at: Mapped[datetime | None] = mapped_column(TS)
+    metrics_error: Mapped[str | None] = mapped_column(Text)
+    metrics_error_at: Mapped[datetime | None] = mapped_column(TS)
 
 
 class ServerContainer(Base):
@@ -86,6 +95,7 @@ class ServerContainer(Base):
     container: Mapped[str] = mapped_column(String(64), primary_key=True)
     params_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     refreshed_at: Mapped[datetime] = _created()
+    traffic_read_at: Mapped[datetime | None] = mapped_column(TS)  # last successful read of its traffic counters
 
 
 class Config(Base):
@@ -106,6 +116,8 @@ class Config(Base):
     last_rx: Mapped[int | None] = mapped_column(BigInteger)
     last_tx: Mapped[int | None] = mapped_column(BigInteger)
     counter_session: Mapped[str | None] = mapped_column(String(128))
+    counter_read_at: Mapped[datetime | None] = mapped_column(TS)  # last time its counter was seen
+    last_active_at: Mapped[datetime | None] = mapped_column(TS)   # last traffic between two recent readings
     # Whether the panel last left this client on the server; tells "removed outside the panel" apart
     # from "removed by the panel because it is blocked".
     applied: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
@@ -175,3 +187,27 @@ class AuditLog(Base):
     target: Mapped[str] = mapped_column(String(64))
     details_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     ts: Mapped[datetime] = mapped_column(TS, server_default=func.now(), index=True)
+
+
+class ServerSample(Base):
+    """One minute of a server's load. Raw counters are kept so rates survive panel restarts."""
+
+    __tablename__ = "server_samples"
+    __table_args__ = (Index("ix_server_samples_server_ts", "server_id", "ts"),)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    server_id: Mapped[int] = mapped_column(ForeignKey("servers.id", ondelete="CASCADE"))
+    ts: Mapped[datetime] = mapped_column(TS)
+    boot_id: Mapped[str] = mapped_column(String(36))
+    uptime_s: Mapped[float] = mapped_column(Float)
+    iface: Mapped[str | None] = mapped_column(String(15))
+    cpu_busy: Mapped[int] = mapped_column(BigInteger)
+    cpu_total: Mapped[int] = mapped_column(BigInteger)
+    net_rx: Mapped[int | None] = mapped_column(BigInteger)
+    net_tx: Mapped[int | None] = mapped_column(BigInteger)
+    cpu_pct: Mapped[float | None] = mapped_column(Float)
+    rx_mbps: Mapped[float | None] = mapped_column(Float)
+    tx_mbps: Mapped[float | None] = mapped_column(Float)
+    mem_pct: Mapped[float | None] = mapped_column(Float)
+    disk_pct: Mapped[float | None] = mapped_column(Float)
+    load1: Mapped[float | None] = mapped_column(Float)
+    active_clients: Mapped[int | None] = mapped_column(Integer)
