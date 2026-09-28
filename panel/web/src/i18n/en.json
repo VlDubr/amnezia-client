@@ -242,9 +242,9 @@
     "unknown_error": "unknown error",
     "rec": {
       "no_data": "No recent load data: {{error}}. Check SSH access to the server.",
-      "cpu_high": "CPU above 80% most of the day (p95 {{p95}}%). Move some users to another server, close it to new configs, or upgrade the plan.",
-      "memory_high": "Memory above 80% most of the day (p95 {{p95}}%). Offload the server or add memory.",
-      "channel_high": "Channel above 80% most of the day (p95 {{p95}}%). Offload the server or widen the channel.",
+      "cpu_high": "In the busiest 5% of the day CPU is above 80% (p95 {{p95}}%). Move some users to another server, close it to new configs, or upgrade the plan.",
+      "memory_high": "In the busiest 5% of the day memory is more than 80% used (p95 {{p95}}%). Offload the server or add memory.",
+      "channel_high": "In the busiest 5% of the day the channel is more than 80% used (p95 {{p95}}%). Offload the server or widen the channel.",
       "disk_full": "Disk {{pct}}% full. Clean up logs and unused Docker images.",
       "clients_over": "{{active}} active configs, more than the expected {{expected}}. Raise the expected number or offload the server.",
       "bandwidth_unset": "Set the channel width: without it the channel does not count in the load level.",

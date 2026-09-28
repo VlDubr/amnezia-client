@@ -65,7 +65,8 @@ export default function DashboardPage() {
                 {s.name}
               </Text>
               <Group gap={4} wrap="nowrap">
-                {s.recommended && (
+                {/* A failed refresh keeps old data on screen: do not keep recommending from it. */}
+                {s.recommended && !servers.isError && (
                   <Badge color="teal" size="sm">
                     {t("load.recommended")}
                   </Badge>

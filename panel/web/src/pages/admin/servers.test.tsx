@@ -104,7 +104,8 @@ describe("server page", () => {
         hints: { link_mbps: 1000, peak_mbps_7d: 640 },
         series: [{ ts: "2026-09-28T11:58:00Z", cpu: 60, mem: 40, rx: 100, tx: 80, clients: 7 },
                  { ts: "2026-09-28T11:59:00Z", cpu: null, mem: null, rx: null, tx: null, clients: null }],
-        recommendations: [{ code: "disk_full", severity: "warning", params: { pct: 91 } },
+        recommendations: [{ code: "cpu_high", severity: "warning", params: { p95: 86 } },
+                          { code: "disk_full", severity: "warning", params: { pct: 91 } },
                           { code: "untracked_protocols", severity: "info", params: { protocols: ["IKEv2"] } }],
         untracked_protocols: ["IKEv2"],
       })),
@@ -116,6 +117,8 @@ describe("server page", () => {
     renderApp("/admin/servers/10");
     expect(await screen.findByText(/AMD EPYC 7B13/)).toBeInTheDocument();
     expect(screen.getByText(/Диск заполнен на 91%/)).toBeInTheDocument();
+    // p95 means the busiest 5% of the day, not "most of the day"
+    expect(screen.getByText(/В самые загруженные 5% суток CPU выше 80%/)).toBeInTheDocument();
     expect(screen.getByText(/Активность клиентов IKEv2 не учитывается/)).toBeInTheDocument();
     expect(screen.getByText(/Пик за 7 дней: 640 Мбит\/с/)).toBeInTheDocument();
     const clients = screen.getByLabelText(/Расчётное число активных конфигов/);

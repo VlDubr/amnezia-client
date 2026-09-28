@@ -152,7 +152,7 @@ Servers are added and protocols are installed in the web admin area only.
 Once a minute the panel reads each server's load over the same SSH access. It runs one fixed read-only command (`/proc`, `/sys`, `df`); nothing is installed on the servers and no `sudo` is needed. It also records the hardware (CPU, cores, memory, disk, OS, network interface) when a server is added and once a day.
 
 - **Users** see a level per server — low, medium, high or no data — and the servers in order from the least loaded; the first one is marked "Recommended" when its data is complete and its load is not high.
-- **Administrators** see on the server page: the hardware, current values, 24-hour and 7-day charts, peaks and recommendations (for example: CPU above 80 % most of the day, disk almost full, channel width not set).
+- **Administrators** see on the server page: the hardware, current values, 24-hour and 7-day charts, peaks and recommendations (for example: CPU above 80 % in the busiest 5 % of the day, disk almost full, channel width not set).
 
 The level is the worst of the 15-minute averages of CPU, memory, channel use and recently active configs; below 50 % is low, 50–80 % medium, above 80 % high. Two values are set by hand on the server page, because they cannot be measured reliably without loading the channel of live users:
 

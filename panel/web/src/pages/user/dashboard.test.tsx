@@ -1,12 +1,41 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { EXPORT, config, err, me, userSession } from "../../../test/fixtures";
 import { server } from "../../../test/msw";
 import { renderApp } from "../../../test/render";
 
 describe("user dashboard", () => {
+  it("refreshes server load while the page is open and drops the recommendation when a refresh fails", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let reply: "first" | "second" | "error" = "first";
+      const one = (id: number, name: string, load: "low" | "high", recommended: boolean) =>
+        ({ id, name, containers: [{ container: "amnezia-awg2", title: "AmneziaWG" }], load, recommended });
+      userSession(me(), []);
+      server.use(http.get("/api/me/servers", () => {
+        if (reply === "error") return err(503, "server_unavailable");
+        return HttpResponse.json(reply === "first"
+          ? [one(11, "de-1", "low", true), one(10, "nl-1", "high", false)]
+          : [one(10, "nl-1", "low", true), one(11, "de-1", "high", false)]);
+      }));
+      renderApp("/");
+      expect(await screen.findByText("Рекомендуем")).toBeInTheDocument();
+      expect(screen.getAllByTestId("server-name").map((n) => n.textContent)).toEqual(["de-1", "nl-1"]);
+
+      reply = "second";
+      await vi.advanceTimersByTimeAsync(61_000);
+      await waitFor(() => expect(screen.getAllByTestId("server-name").map((n) => n.textContent)).toEqual(["nl-1", "de-1"]));
+
+      reply = "error";
+      await vi.advanceTimersByTimeAsync(61_000);
+      await waitFor(() => expect(screen.queryByText("Рекомендуем")).not.toBeInTheDocument());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("shows each server's load in the order given and marks the recommended one", async () => {
     userSession(me(), [], [
       { id: 11, name: "de-1", containers: [{ container: "amnezia-awg2", title: "AmneziaWG" }], load: "low", recommended: true },

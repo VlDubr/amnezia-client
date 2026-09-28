@@ -28,7 +28,9 @@ export const keys = {
 };
 
 export const useMe = () => useQuery({ queryKey: keys.me, queryFn: () => api<Me>("/api/me") });
-export const useMyServers = () => useQuery({ queryKey: keys.myServers, queryFn: () => api<MyServer[]>("/api/me/servers") });
+// Load levels change: refresh them while the page is open.
+export const useMyServers = () =>
+  useQuery({ queryKey: keys.myServers, queryFn: () => api<MyServer[]>("/api/me/servers"), refetchInterval: 60_000 });
 export const useMyConfigs = () => useQuery({ queryKey: keys.myConfigs, queryFn: () => api<Config[]>("/api/me/configs") });
 
 export const useUsers = (params: URLSearchParams) =>
@@ -41,7 +43,8 @@ export const useServerLoad = (id: number, range: "24h" | "7d") =>
     queryFn: () => api<ServerLoad>(`/api/admin/servers/${id}/load?range=${range}`),
     refetchInterval: 60_000, // new samples arrive once a minute
   });
-export const useServers = () => useQuery({ queryKey: keys.servers, queryFn: () => api<ServerInfo[]>("/api/admin/servers") });
+export const useServers = () =>
+  useQuery({ queryKey: keys.servers, queryFn: () => api<ServerInfo[]>("/api/admin/servers"), refetchInterval: 60_000 });
 export const useServer = (id: number) =>
   useQuery({ queryKey: keys.server(id), queryFn: () => api<ServerInfo>(`/api/admin/servers/${id}`) });
 export const useInstallable = () =>
