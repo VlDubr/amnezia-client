@@ -37,19 +37,17 @@ async def windows(db: AsyncSession, server_ids: list[int], now: datetime) -> dic
         "WHERE server_id = ANY(:ids) AND ts > :since AND ts <= :now GROUP BY server_id"),
         {"ids": server_ids, "since": now - WINDOW, "now": now})).mappings().all()
     by_id = {r["server_id"]: r for r in rows}
-    out: dict[int, LoadWindow] = {}
-    for server_id in server_ids:
-        r = by_id.get(server_id)
 
-        def metric(name: str) -> MetricWindow:
-            if r is None:
-                return MetricWindow(None, 0, None)
-            avg = r[f"{name}_avg"]
-            return MetricWindow(float(avg) if avg is not None else None, r[f"{name}_n"], r[f"{name}_last"])
+    def metric(row, name: str) -> MetricWindow:
+        if row is None:
+            return MetricWindow(None, 0, None)
+        avg = row[f"{name}_avg"]
+        return MetricWindow(float(avg) if avg is not None else None, row[f"{name}_n"], row[f"{name}_last"])
 
-        out[server_id] = LoadWindow(cpu=metric("cpu"), mem=metric("mem"), net_mbps=metric("net"),
-                                    clients=metric("clients"))
-    return out
+    return {server_id: LoadWindow(cpu=metric(by_id.get(server_id), "cpu"), mem=metric(by_id.get(server_id), "mem"),
+                                  net_mbps=metric(by_id.get(server_id), "net"),
+                                  clients=metric(by_id.get(server_id), "clients"))
+            for server_id in server_ids}
 
 
 async def levels(db: AsyncSession, servers: list[Server], now: datetime) -> dict[int, tuple[Level, float | None, bool]]:
