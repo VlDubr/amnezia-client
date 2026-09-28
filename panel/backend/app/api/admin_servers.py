@@ -104,6 +104,7 @@ async def add_server(body: ServerIn, request: Request, admin: AdminDep, db: Db, 
     job = await enqueue_server_sync(db, server.id, "server_import")
     audit(db, admin.actor, "server_add", f"server:{server.id}", host=body.host)
     await db.commit()
+    request.app.state.sampler.kick(server.id)  # hardware facts and a first sample without waiting a minute
     return _accepted({"server": await server_out(db, server), "job_id": job.id})
 
 

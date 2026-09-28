@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.db.models import Job, Server, Session
 from app.domain.clock import Clock
 from app.jobs.queue import enqueue
+from app.services.metrics import cleanup_samples
 from app.services.sync import enqueue_server_sync
 
 INTERVALS_S = {"expire": 60, "traffic": 300, "reconcile": 900, "cleanup": 86400}
@@ -32,6 +33,7 @@ async def cleanup(db: AsyncSession, clock: Clock) -> None:
     await db.execute(delete(Session).where(or_(Session.expires_at < now, Session.revoked_at < now)))
     await db.execute(delete(Job).where(Job.status.in_(("done", "failed")), Job.finished_at < now - JOB_RETENTION))
     await db.commit()
+    await cleanup_samples(db, now)
 
 
 def build_scheduler(sessionmaker: async_sessionmaker[AsyncSession]) -> AsyncIOScheduler:

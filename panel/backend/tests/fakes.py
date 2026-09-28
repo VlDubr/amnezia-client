@@ -17,6 +17,7 @@ class FakeRemote:
         self.fail_with: str | None = None
         self.fail_on: str | None = None  # fail container commands that contain this text
         self.hooks: list = []  # callables (container, script) run for every container command
+        self.host_outputs: dict[str, str] = {}  # command substring -> stdout for host commands (run)
 
     def _check(self):
         if self.fail_with:
@@ -25,6 +26,9 @@ class FakeRemote:
     async def run(self, cmd: str, input: str | None = None, check: bool = True, timeout: float = 120) -> RunResult:
         self._check()
         self.commands.append(("host", cmd))
+        for needle, out in self.host_outputs.items():
+            if needle in cmd:
+                return RunResult(out, "", 0)
         return RunResult("", "", 0)
 
     async def read_container_file(self, container: str, path: str) -> str:
