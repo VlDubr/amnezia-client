@@ -28,6 +28,7 @@ class MtProxyDriver:
     container = "amnezia-mtproxy"
     title = "MTProxy (Telegram)"
     installable = True
+    traffic_counters = False
     script_folder = "mtproxy"
     default_port = "443"
     shell = "sh"

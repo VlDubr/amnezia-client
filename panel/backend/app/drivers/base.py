@@ -45,6 +45,9 @@ class Driver(Protocol):
     container: str
     title: str
     installable: bool  # the panel can install this container with client/server_scripts
+    # read_traffic returns per-client counters. It raises when they could not be read; an empty dict means the
+    # read succeeded and no client has traffic.
+    traffic_counters: bool
     script_folder: str
 
     async def read_params(self, remote: Remote) -> dict[str, Any]: ...

@@ -67,6 +67,7 @@ SPECIAL_JUNK_1 = "<r 2><b 0x858000010001000000000669636c6f756403636f6d0000010001
 
 
 class WgFamilyDriver:
+    traffic_counters = True
     def __init__(self, container: str, title: str, bin_: str, iface: str, data_dir: str, conf_name: str,
                  script_folder: str, proto_key: str, is_awg: bool, default_port: str, installable: bool):
         self.container = container

@@ -71,6 +71,7 @@ class Socks5Driver:
     container = "amnezia-socks5proxy"
     title = "SOCKS5"
     installable = True
+    traffic_counters = True
     script_folder = "socks5_proxy"
     default_port = "38080"
     shell = "sh"  # the 3proxy image has no bash

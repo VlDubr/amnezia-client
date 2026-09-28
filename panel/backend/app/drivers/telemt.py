@@ -38,6 +38,7 @@ class TelemtDriver:
     container = "amnezia-telemt"
     title = "Telemt (Telegram)"
     installable = True
+    traffic_counters = False
     script_folder = "telemt"
     default_port = "443"
 

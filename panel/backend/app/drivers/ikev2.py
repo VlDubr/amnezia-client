@@ -32,6 +32,7 @@ class Ikev2Driver:
     container = "amnezia-ipsec"
     title = "IKEv2"
     installable = False  # fixed ports 500/4500 and kernel IPsec support: installed from the Qt app
+    traffic_counters = False
     script_folder = "ipsec"
     default_port = "500"
 

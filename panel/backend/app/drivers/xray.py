@@ -43,6 +43,7 @@ class XrayDriver:
     container = "amnezia-xray"
     title = "XRay"
     installable = True
+    traffic_counters = True
     script_folder = "xray"
     default_port = "443"
 
@@ -148,12 +149,11 @@ class XrayDriver:
         return result
 
     async def read_traffic(self, remote: Remote) -> dict[str, Counter]:
-        try:
-            out = await remote.container_exec(
-                self.container, f"xray api statsquery --server={API_LISTEN} -pattern 'user>>>'")
-            stats = json.loads(out or "{}").get("stat", [])
-        except (RemoteError, ValueError):
-            return {}  # stats API not enabled yet (before the first apply) or xray restarting
+        # Raises while the stats API is not enabled yet (before the first apply) or Xray restarts: the caller must
+        # not mistake that for "no traffic".
+        out = await remote.container_exec(
+            self.container, f"xray api statsquery --server={API_LISTEN} -pattern 'user>>>'")
+        stats = json.loads(out or "{}").get("stat", [])
         counters: dict[str, Counter] = {}
         for item in stats:
             parts = item.get("name", "").split(">>>")

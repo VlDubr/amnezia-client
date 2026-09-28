@@ -99,12 +99,6 @@ async def test_read_traffic_parses_statsquery():
     assert (traffic[UUID_B].rx, traffic[UUID_B].tx) == (0, 0)
 
 
-async def test_read_traffic_tolerates_missing_api():
-    remote = xray_remote()
-    remote.fail_on = "statsquery"
-    assert await get_driver(XRAY).read_traffic(remote) == {}
-
-
 async def test_render_client_json_and_vless_link():
     remote = xray_remote()
     driver = get_driver(XRAY)

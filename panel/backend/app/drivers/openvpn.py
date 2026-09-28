@@ -52,6 +52,7 @@ class OpenVpnDriver:
     container = "amnezia-openvpn"
     title = "OpenVPN"
     installable = True
+    traffic_counters = True
     script_folder = "openvpn"
     default_port = "1194"
 
@@ -159,8 +160,8 @@ class OpenVpnDriver:
 
     async def read_traffic(self, remote: Remote) -> dict[str, Counter]:
         out = await remote.container_exec(
-            self.container, f"cat /openvpn-status.log 2>/dev/null || cat {DATA_DIR}/openvpn-status.log 2>/dev/null "
-                            "|| true")
+            # No `|| true`: a missing status log is a failed read, not "no traffic".
+            self.container, f"cat /openvpn-status.log 2>/dev/null || cat {DATA_DIR}/openvpn-status.log")
         counters: dict[str, Counter] = {}
         sessions: dict[str, list[str]] = {}
         in_list = False
