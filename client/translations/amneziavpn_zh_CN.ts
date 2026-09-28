@@ -835,6 +835,26 @@ Already installed containers were found on the server. All installed containers 
         <source>Copied</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="44"/>
+        <source>Low load</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="45"/>
+        <source>Medium load</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="46"/>
+        <source>High load</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PagePanelUser.qml" line="47"/>
+        <source>No load data</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>PagePanelUsers</name>

@@ -40,6 +40,13 @@ PageType {
         return qsTr("Active")
     }
 
+    function loadText(level) {
+        if (level === "low") return qsTr("Low load")
+        if (level === "medium") return qsTr("Medium load")
+        if (level === "high") return qsTr("High load")
+        return qsTr("No load data")
+    }
+
     function isActive() {
         return root.StackView.status === StackView.Active
     }
@@ -239,6 +246,7 @@ PageType {
                             // Creating a config takes a while over SSH: one tap issues exactly one config.
                             enabled: !PanelController.busy
                             text: serverData.name + " · " + modelData.title
+                            descriptionText: loadText(serverData.load)
                             rightImageSource: "qrc:/images/controls/plus.svg"
                             clickedFunction: function() {
                                 root.issuing = false
