@@ -147,6 +147,20 @@ From there you can do the same user work as in the web admin area:
 
 Servers are added and protocols are installed in the web admin area only.
 
+## Server load
+
+Once a minute the panel reads each server's load over the same SSH access. It runs one fixed read-only command (`/proc`, `/sys`, `df`); nothing is installed on the servers and no `sudo` is needed. It also records the hardware (CPU, cores, memory, disk, OS, network interface) when a server is added and once a day.
+
+- **Users** see a level per server — low, medium, high or no data — and the servers in order from the least loaded; the first one is marked "Recommended" when its data is complete and its load is not high.
+- **Administrators** see on the server page: the hardware, current values, 24-hour and 7-day charts, peaks and recommendations (for example: CPU above 80 % most of the day, disk almost full, channel width not set).
+
+The level is the worst of the 15-minute averages of CPU, memory, channel use and recently active configs; below 50 % is low, 50–80 % medium, above 80 % high. Two values are set by hand on the server page, because they cannot be measured reliably without loading the channel of live users:
+
+- **Channel width** (Mbit/s, each direction) — the page shows the network card speed and the 7-day peak as hints;
+- **Expected active configs** — how many clients the server is sized for.
+
+Until they are set, the channel and the clients do not count in the level. IKEv2, MTProxy and Telemt have no per-client traffic counters, so their clients are not counted as active. Samples are kept for 30 days.
+
 ## API
 
 The REST API lives under `/api`. Its OpenAPI description is served at `/api/openapi.json`, and interactive docs are at `/api/docs`.
