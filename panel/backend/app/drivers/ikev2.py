@@ -15,6 +15,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+from app.domain.filenames import download_filename
 from app.drivers.base import ApplyResult, ClientInfo, ClientMaterial, Counter, Rendered, register
 from app.drivers.scripts import script
 from app.render.vpnkey import encode_vpn_key
@@ -145,8 +146,7 @@ class Ikev2Driver:
                   .replace("$SERVER_ADDR", host).replace("$P12_BASE64", p12).replace("$CA_BASE64", params["ca"]))
         while "$(UUID_GEN)" in mobile:
             mobile = mobile.replace("$(UUID_GEN)", str(uuid.uuid4()), 1)
-        safe = re.sub(r"[^\w.-]+", "_", description).strip("_") or "amnezia"
-        return Rendered(encode_vpn_key(doc), mobile, f"{safe}.mobileconfig")
+        return Rendered(encode_vpn_key(doc), mobile, download_filename(description, "mobileconfig"))
 
 
 register(Ikev2Driver())

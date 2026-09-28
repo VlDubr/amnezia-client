@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +25,17 @@ class ConfigIn(BaseModel):
     server_id: int
     container: str
     name: str | None = Field(default=None, max_length=128)
+
+    @field_validator("name")
+    @classmethod
+    def _clean_name(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = v.strip()
+        # The name goes into the vpn:// key, links and the file name: no blanks, no control characters.
+        if not v or any(ord(c) < 0x20 or ord(c) == 0x7F for c in v):
+            raise ValueError("the name must not be blank or contain control characters")
+        return v
 
 
 class AssignIn(BaseModel):

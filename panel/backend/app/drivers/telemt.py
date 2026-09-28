@@ -7,6 +7,7 @@ import secrets
 import urllib.parse
 from typing import Any
 
+from app.domain.filenames import download_filename
 from app.drivers.base import ApplyResult, ClientInfo, ClientMaterial, Counter, Rendered, register
 from app.ssh.conn import Remote
 
@@ -127,7 +128,7 @@ class TelemtDriver:
         full = f"ee{secret}{params['tls_domain'].encode().hex()}" if params["tls"] else f"dd{secret}"
         server = params["public_host"] or host
         query = urllib.parse.urlencode({"server": server, "port": params["port"], "secret": full})
-        return Rendered("", f"tg://proxy?{query}", "telegram-proxy.txt")
+        return Rendered("", f"tg://proxy?{query}", download_filename(description, "txt"))
 
 
 register(TelemtDriver())

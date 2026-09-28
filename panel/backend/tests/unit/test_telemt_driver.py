@@ -68,6 +68,7 @@ async def test_render_links():
                      "x")
     q = dict(urllib.parse.parse_qsl(urllib.parse.urlparse(plain.native).query))
     assert q == {"server": "tg.example", "port": "8443", "secret": "dd" + SECRET} and plain.vpn_key == ""
+    assert plain.native_filename == "x.txt"
 
 
 async def test_link_uses_the_public_port_behind_nat():

@@ -50,15 +50,41 @@ async def test_create_and_export_config(db, client, admin_token, app, fake_remot
     detail = (await client.get(f"/api/me/configs/{cfg['id']}", headers=bearer(token))).json()
     export = detail["export"]
     assert export["native"].startswith("[Interface]") and "Address = 10.8.1.3/32" in export["native"]
-    assert export["qr_svg"].startswith("<svg") and export["native_filename"] == "nl-1.conf"
+    assert export["qr_svg"].startswith("<svg") and export["native_filename"] == "Phone.conf"
     doc = decode_vpn_key(export["vpn_key"])
-    assert doc["hostName"] == "203.0.113.10" and doc["description"] == "nl-1"
+    assert doc["hostName"] == "203.0.113.10" and doc["description"] == "Phone"
     assert json.loads(doc["containers"][0]["awg"]["last_config"])["clientId"] == cfg["client_id"]
 
     me = (await client.get("/api/me", headers=bearer(token))).json()
     assert me["configs_count"] == 1
     listing = (await client.get("/api/me/configs", headers=bearer(token))).json()
     assert [c["id"] for c in listing] == [cfg["id"]]
+
+
+async def test_config_name_names_the_download(db, client, admin_token, app, fake_remote):
+    server, _, token = await _setup(db, client, admin_token, app)
+    cfg = (await _create(client, token, server["id"], name="  Мой телефон  ")).json()
+    assert cfg["name"] == "Мой телефон"
+    export = (await client.get(f"/api/me/configs/{cfg['id']}", headers=bearer(token))).json()["export"]
+    assert export["native_filename"] == "Moy_telefon.conf"
+    assert decode_vpn_key(export["vpn_key"])["description"] == "Мой телефон"
+
+
+async def test_default_name_names_the_download(db, client, admin_token, app, fake_remote):
+    server, _, token = await _setup(db, client, admin_token, app)
+    cfg = (await _create(client, token, server["id"])).json()
+    assert cfg["name"] == "nl-1 AmneziaWG"
+    export = (await client.get(f"/api/me/configs/{cfg['id']}", headers=bearer(token))).json()["export"]
+    assert export["native_filename"] == "nl-1_AmneziaWG.conf"
+
+
+async def test_blank_or_control_character_names_are_refused(db, client, admin_token, app, fake_remote):
+    server, uid, token = await _setup(db, client, admin_token, app)
+    for bad in ("   ", "a\nb", "tab\there", "x" * 129):
+        r = await client.post("/api/me/configs", json={"server_id": server["id"], "container": AWG, "name": bad},
+                              headers=bearer(token))
+        assert r.status_code == 422, bad
+    assert await _count(db, uid) == 0
 
 
 async def test_export_is_repeatable(db, client, admin_token, app, fake_remote):

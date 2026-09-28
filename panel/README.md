@@ -16,6 +16,7 @@ What users can do:
 
 - Register with the invite key.
 - Create, block, delete and re-download their configs in a web cabinet.
+  A config is named when it is created. The connection in the AmneziaVPN app and the downloaded file get that name (the file name transliterated to Latin, e.g. `Moy_telefon.conf`).
 
 The panel runs on its own VPS. It manages VPN servers over SSH with the same scripts the AmneziaVPN desktop client uses (`client/server_scripts`), so it works with servers that were set up by the app.
 

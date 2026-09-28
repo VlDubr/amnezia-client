@@ -6,6 +6,7 @@ import secrets
 import urllib.parse
 from typing import Any
 
+from app.domain.filenames import download_filename
 from app.drivers.base import ApplyResult, ClientInfo, ClientMaterial, Counter, Rendered, register
 from app.ssh.conn import Remote, RemoteError
 
@@ -166,7 +167,7 @@ class Socks5Driver:
         endpoint = f"[{host}]" if ":" in host and not host.startswith("[") else host
         link = f"socks5://{q(material.data['login'], safe='')}:{q(material.data['secret'], safe='')}@" \
                f"{endpoint}:{params['port']}"
-        return Rendered("", link, "socks5.txt")
+        return Rendered("", link, download_filename(description, "txt"))
 
 
 register(Socks5Driver())

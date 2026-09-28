@@ -15,6 +15,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
+from app.domain.filenames import download_filename
 from app.drivers.base import ApplyResult, ClientInfo, ClientMaterial, Counter, Rendered, register
 from app.drivers.scripts import replace_vars, script
 from app.render.vpnkey import encode_vpn_key
@@ -210,8 +211,7 @@ class OpenVpnDriver:
             "dns2": dns[1],
             "hostName": host,
         }
-        safe = re.sub(r"[^\w.-]+", "_", description).strip("_") or "amnezia"
-        return Rendered(encode_vpn_key(doc), ovpn, f"{safe}.ovpn")
+        return Rendered(encode_vpn_key(doc), ovpn, download_filename(description, "ovpn"))
 
 
 register(OpenVpnDriver())

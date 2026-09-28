@@ -84,3 +84,4 @@ async def test_render_socks_link():
     assert out.vpn_key == "" and link.scheme == "socks5" and link.hostname == "vpn.example.com"
     assert link.port == 38080 and link.username == "u1" and urllib.parse.unquote(link.password) == "p@ss:/"
     assert json.dumps(out.native)
+    assert d.render(m, await d.read_params(r), "h", ("", ""), "Ноутбук").native_filename == "Noutbuk.txt"

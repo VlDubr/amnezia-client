@@ -1,4 +1,5 @@
-import { Alert, Badge, Button, Card, Group, SimpleGrid, Stack, Text, Title } from "@mantine/core";
+import { Alert, Badge, Button, Card, Group, Modal, SimpleGrid, Stack, Text, TextInput, Title } from "@mantine/core";
+import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../../api/client";
 import { keys, useAction, useMe, useMyConfigs, useMyServers } from "../../api/hooks";
@@ -19,11 +20,24 @@ export default function DashboardPage() {
   const share = useShare("/api/me/configs");
   const refresh = [keys.me, keys.myConfigs];
 
+  const [naming, setNaming] = useState<{ server_id: number; container: string; name: string } | null>(null);
   const create = useAction(
-    (v: { server_id: number; container: string }) => api<Config>("/api/me/configs", { method: "POST", body: v }),
+    (v: { server_id: number; container: string; name: string }) =>
+      api<Config>("/api/me/configs", { method: "POST", body: v }),
     refresh,
-    (created) => void share.open(created.id),
+    (created) => {
+      setNaming(null);
+      void share.open(created.id);
+    },
   );
+  const startCreate = (server_id: number, container: string, name: string) => {
+    create.reset();
+    setNaming({ server_id, container, name });
+  };
+  const submitCreate = (e: FormEvent) => {
+    e.preventDefault();
+    if (naming && naming.name.trim()) create.mutate({ ...naming, name: naming.name.trim() });
+  };
   const block = useAction((c: Config) => api(`/api/me/configs/${c.id}/block`, { method: "POST" }), refresh);
   const unblock = useAction((c: Config) => api(`/api/me/configs/${c.id}/unblock`, { method: "POST" }), refresh);
   const remove = useAction((c: Config) => api(`/api/me/configs/${c.id}`, { method: "DELETE" }), refresh);
@@ -55,7 +69,6 @@ export default function DashboardPage() {
       <ErrorAlert error={me.error || servers.error || configs.error} />
 
       <Title order={4}>{t("dashboard.servers")}</Title>
-      <ErrorAlert error={create.error} />
       {servers.data && servers.data.length === 0 && <Text c="dimmed">{t("dashboard.no_servers")}</Text>}
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
         {servers.data?.map((s) => (
@@ -80,8 +93,7 @@ export default function DashboardPage() {
                   <Text size="sm">{c.title}</Text>
                   <Button
                     size="xs"
-                    onClick={() => create.mutate({ server_id: s.id, container: c.container })}
-                    loading={create.isPending && create.variables?.server_id === s.id}
+                    onClick={() => startCreate(s.id, c.container, `${s.name} ${c.title}`)}
                     disabled={!active || atLimit}
                   >
                     {t("dashboard.create_config")}
@@ -108,6 +120,27 @@ export default function DashboardPage() {
         onDelete={(c) => confirmAction(t("dashboard.delete_config", { name: c.name }), () => remove.mutate(c))}
         canUnblock={(c) => c.blocked_by === "user"}
       />
+      <Modal opened={naming !== null} onClose={() => setNaming(null)} title={t("dashboard.create_config")}>
+        <form onSubmit={submitCreate}>
+          <Stack>
+            <ErrorAlert error={create.error} />
+            <TextInput
+              label={t("dashboard.config_name")}
+              description={t("dashboard.config_name_hint")}
+              value={naming?.name ?? ""}
+              onChange={(e) => {
+                const name = e.currentTarget.value;
+                setNaming((n) => (n ? { ...n, name } : n));
+              }}
+              maxLength={128}
+              data-autofocus
+            />
+            <Button type="submit" loading={create.isPending} disabled={!naming?.name.trim()}>
+              {t("common.create")}
+            </Button>
+          </Stack>
+        </form>
+      </Modal>
       {share.modal}
     </Stack>
   );

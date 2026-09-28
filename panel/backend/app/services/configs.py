@@ -136,7 +136,7 @@ async def export_config(db: AsyncSession, state: Any, cfg: Config) -> dict[str, 
         return None
     settings = state.settings
     rendered = get_driver(cfg.container).render(ClientMaterial(cfg.client_id, material), sc.params_json, server.host,
-                                                (settings.dns1, settings.dns2), server.name)
+                                                (settings.dns1, settings.dns2), cfg.name)
     return {"vpn_key": rendered.vpn_key, "native": rendered.native, "native_filename": rendered.native_filename,
             # Services (SOCKS5, Telegram proxies) have no vpn:// key; their QR is the link itself.
             "qr_svg": qr_svg(rendered.vpn_key or rendered.native)}

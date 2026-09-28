@@ -77,7 +77,9 @@
     "col_protocol": "Protocol",
     "col_status": "Status",
     "col_traffic": "Traffic",
-    "config_name": "Config name (optional)",
+    "config_name": "Config name",
+    "config_name_hint": "The config file and the connection in the AmneziaVPN app get this name.",
+    "config_name_optional": "Optional. Without a name the config is called \"server protocol\".",
     "delete_config": "Delete config \"{{name}}\"? It stops working and cannot be restored.",
     "block_config": "Block config \"{{name}}\"? You can unblock it later."
   },

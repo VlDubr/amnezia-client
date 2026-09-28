@@ -67,8 +67,11 @@ test("admin invites a user who manages configs and changes the password", async 
   await expect(page.getByText("Конфигов: 0 из 3")).toBeVisible();
 
   await page.getByRole("button", { name: "Создать конфиг" }).first().click();
+  await page.getByLabel("Название конфига").fill("Мой телефон");
+  await page.getByRole("button", { name: "Создать", exact: true }).click();
   const share = page.getByRole("dialog");
   await expect(share.getByLabel("Ключ для приложения AmneziaVPN")).toHaveValue(/^vpn:\/\//);
+  await expect(share.getByRole("link", { name: "Скачать" })).toHaveAttribute("download", "Moy_telefon.conf");
   await expect(share.locator("svg").first()).toBeVisible();
   // On a phone the QR must stay inside the dialog so it can be scanned.
   await page.setViewportSize({ width: 360, height: 740 });
@@ -125,6 +128,8 @@ test("admin blocks a user and the user sees it", async ({ page }) => {
   await logout(page);
   await register(page, key, "blocked-e2e");
   await page.getByRole("button", { name: "Создать конфиг" }).first().click();
+  await page.getByRole("button", { name: "Создать", exact: true }).click();
+  await expect(page.getByRole("dialog").getByLabel("Ключ для приложения AmneziaVPN")).toHaveValue(/^vpn:\/\//);
   await page.keyboard.press("Escape");
   await logout(page);
 

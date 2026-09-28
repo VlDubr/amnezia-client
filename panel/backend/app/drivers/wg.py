@@ -7,12 +7,12 @@ import base64
 import ipaddress
 import json
 import random
-import re
 from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat, PublicFormat
 
+from app.domain.filenames import download_filename
 from app.drivers import wgconf
 from app.drivers.base import ApplyResult, ClientInfo, ClientMaterial, Counter, Rendered, register
 from app.drivers.scripts import drop_empty_value_lines, replace_vars, script
@@ -55,10 +55,6 @@ def generate_keypair() -> tuple[str, str]:
     private = key.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
     public = key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
     return base64.b64encode(private).decode(), base64.b64encode(public).decode()
-
-
-def _safe_filename(name: str) -> str:
-    return re.sub(r"[^\w.-]+", "_", name, flags=re.UNICODE).strip("_") or "amnezia"
 
 
 SUBNET = "10.8.1.0"
@@ -258,7 +254,7 @@ class WgFamilyDriver:
             "dns2": dns[1],
             "hostName": host,
         }
-        return Rendered(encode_vpn_key(doc), native, f"{_safe_filename(description)}.conf")
+        return Rendered(encode_vpn_key(doc), native, download_filename(description, "conf"))
 
 
 register(WgFamilyDriver("amnezia-awg2", "AmneziaWG", "awg", "awg0", "/opt/amnezia/awg", "awg0.conf", "awg", "awg",

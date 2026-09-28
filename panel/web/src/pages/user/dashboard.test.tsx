@@ -68,16 +68,31 @@ describe("user dashboard", () => {
     server.use(
       http.get("/api/me/configs", () => HttpResponse.json(configs)),
       http.post("/api/me/configs", async ({ request }) => {
-        expect(await request.json()).toEqual({ server_id: 10, container: "amnezia-awg2" });
-        configs = [...configs, config({ id: 2, name: "nl-1 AmneziaWG" })];
+        expect(await request.json()).toEqual({ server_id: 10, container: "amnezia-awg2", name: "Мой телефон" });
+        configs = [...configs, config({ id: 2, name: "Мой телефон" })];
         return HttpResponse.json(configs[1], { status: 201 });
       }),
       http.get("/api/me/configs/2", () => HttpResponse.json({ ...configs[1], export: EXPORT })),
     );
     renderApp("/");
     await userEvent.click(await screen.findByRole("button", { name: /Создать конфиг/ }));
+    const name = await screen.findByLabelText("Название конфига");
+    expect(name).toHaveValue("nl-1 AmneziaWG");
+    await userEvent.clear(name);
+    await userEvent.type(name, " Мой телефон ");
+    await userEvent.click(screen.getByRole("button", { name: "Создать" }));
     expect(await screen.findByDisplayValue("vpn://KEY")).toBeInTheDocument();
-    expect(await screen.findByText("nl-1 AmneziaWG")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByLabelText("Название конфига")).not.toBeInTheDocument());
+    expect(await screen.findByText("Мой телефон")).toBeInTheDocument();
+  });
+
+  it("does not create a config with a blank name", async () => {
+    userSession(me(), [config()]);
+    renderApp("/");
+    await userEvent.click(await screen.findByRole("button", { name: /Создать конфиг/ }));
+    await userEvent.clear(await screen.findByLabelText("Название конфига"));
+    await userEvent.type(screen.getByLabelText("Название конфига"), "   ");
+    expect(screen.getByRole("button", { name: "Создать" })).toBeDisabled();
   });
 
   it("explains a failed creation and keeps the list", async () => {
@@ -85,6 +100,7 @@ describe("user dashboard", () => {
     server.use(http.post("/api/me/configs", () => err(409, "config_limit")));
     renderApp("/");
     await userEvent.click(await screen.findByRole("button", { name: /Создать конфиг/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "Создать" }));
     expect(await screen.findByText("Достигнут лимит конфигов")).toBeInTheDocument();
     expect(screen.getAllByRole("row")).toHaveLength(2);
   });
@@ -94,6 +110,7 @@ describe("user dashboard", () => {
     server.use(http.post("/api/me/configs", () => err(503, "server_unavailable")));
     renderApp("/");
     await userEvent.click(await screen.findByRole("button", { name: /Создать конфиг/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "Создать" }));
     expect(await screen.findByText("Сервер не отвечает. Попробуйте позже.")).toBeInTheDocument();
   });
 

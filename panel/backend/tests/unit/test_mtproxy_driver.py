@@ -68,3 +68,4 @@ async def test_render_link():
                    {"port": "8443", "tls": True, "tls_domain": "ab.c", "public_host": ""}, "1.2.3.4", ("", ""), "x")
     q = dict(urllib.parse.parse_qsl(urllib.parse.urlparse(out.native).query))
     assert q == {"server": "1.2.3.4", "port": "8443", "secret": "ee" + EXTRA + b"ab.c".hex()} and out.vpn_key == ""
+    assert out.native_filename == "x.txt"

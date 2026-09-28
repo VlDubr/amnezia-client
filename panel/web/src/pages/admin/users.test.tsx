@@ -189,6 +189,24 @@ describe("admin user page", () => {
     expect(body).toEqual({ server_id: 10, container: "amnezia-awg2" });
   });
 
+  it("issues a config under the name the admin typed", async () => {
+    let body: unknown = null;
+    userPage(detail());
+    server.use(
+      http.post("/api/admin/users/1/configs", async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(config({ id: 5 }), { status: 201 });
+      }),
+      http.get("/api/admin/configs/5", () => HttpResponse.json({ ...config({ id: 5 }), export: EXPORT })),
+    );
+    renderApp("/admin/users/1");
+    await userEvent.click(await screen.findByRole("button", { name: "Выдать конфиг" }));
+    await userEvent.type(await screen.findByLabelText("Название конфига"), "  Ноутбук ");
+    await userEvent.click(screen.getByRole("button", { name: /nl-1 · AmneziaWG/ }));
+    await screen.findByDisplayValue("vpn://KEY");
+    expect(body).toEqual({ server_id: 10, container: "amnezia-awg2", name: "Ноутбук" });
+  });
+
   it("shows the limit error when issuing fails", async () => {
     userPage(detail());
     server.use(http.post("/api/admin/users/1/configs", () => err(409, "config_limit")));

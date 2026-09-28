@@ -1,4 +1,4 @@
-import { Anchor, Button, Card, Group, Modal, SimpleGrid, Stack, Text, Title } from "@mantine/core";
+import { Anchor, Button, Card, Group, Modal, SimpleGrid, Stack, Text, TextInput, Title } from "@mantine/core";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router";
@@ -54,8 +54,9 @@ export default function UserPage() {
     refresh,
     (r) => setInviteKey(r.invite_key),
   );
+  const [issueName, setIssueName] = useState("");
   const issue = useAction(
-    (v: { server_id: number; container: string }) =>
+    (v: { server_id: number; container: string; name?: string }) =>
       api<Config>(`/api/admin/users/${id}/configs`, { method: "POST", body: v }),
     refresh,
     (created) => {
@@ -170,7 +171,14 @@ export default function UserPage() {
 
       <Group justify="space-between">
         <Title order={4}>{t("admin.user_configs")}</Title>
-        <Button variant="light" onClick={() => setIssuing(true)}>
+        <Button
+          variant="light"
+          onClick={() => {
+            issue.reset();
+            setIssueName("");
+            setIssuing(true);
+          }}
+        >
           {t("admin.add_config")}
         </Button>
       </Group>
@@ -188,13 +196,26 @@ export default function UserPage() {
       <Modal opened={issuing} onClose={() => setIssuing(false)} title={t("admin.add_config")}>
         <Stack>
           <ErrorAlert error={issue.error} />
+          <TextInput
+            label={t("dashboard.config_name")}
+            description={t("dashboard.config_name_optional")}
+            value={issueName}
+            onChange={(e) => setIssueName(e.currentTarget.value)}
+            maxLength={128}
+          />
           {servers.data?.flatMap((s) =>
             s.containers.map((c) => (
               <Button
                 key={`${s.id}-${c.container}`}
                 variant="light"
                 loading={issue.isPending && issue.variables?.server_id === s.id}
-                onClick={() => issue.mutate({ server_id: s.id, container: c.container })}
+                onClick={() =>
+                  issue.mutate({
+                    server_id: s.id,
+                    container: c.container,
+                    ...(issueName.trim() ? { name: issueName.trim() } : {}),
+                  })
+                }
               >
                 {`${s.name} · ${c.title}`}
               </Button>
