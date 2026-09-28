@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
@@ -9,10 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.audit import audit
 from app.api.deps import AdminDep, ClockDep, Db, SecretBoxDep
 from app.db.models import Config, Server, ServerContainer
-from app.drivers.base import get_driver
+from app.domain.load import recommendations
+from app.domain.metrics import IFACE_RE
+from app.drivers.base import get_driver, installable_containers, supported_containers
 from app.errors import ApiError
 from app.jobs.queue import enqueue
-from app.drivers.base import installable_containers
+from app.services import load_summary
 from app.services.servers import seal_ssh_secret
 from app.services.sync import enqueue_server_sync
 from app.ssh.conn import RemoteError
@@ -37,6 +40,10 @@ class ServerPatch(BaseModel):
     ssh_user: str | None = None
     ssh_password: str | None = None
     ssh_private_key: str | None = None
+    # Load capacities: an explicit null clears the value, an absent field leaves it.
+    bandwidth_mbps: int | None = Field(default=None, ge=1, le=1_000_000)
+    expected_clients: int | None = Field(default=None, ge=1, le=100_000)
+    metrics_iface: str | None = Field(default=None, pattern=IFACE_RE.pattern)
 
 
 class ContainerIn(BaseModel):
@@ -56,7 +63,7 @@ def _iso(dt: datetime | None) -> str | None:
     return dt.isoformat() if dt else None
 
 
-async def server_out(db: AsyncSession, server: Server) -> dict:
+async def server_out(db: AsyncSession, server: Server, level: tuple | None = None) -> dict:
     containers = (await db.execute(
         select(ServerContainer).where(ServerContainer.server_id == server.id).order_by(ServerContainer.container)
     )).scalars().all()
@@ -70,7 +77,14 @@ async def server_out(db: AsyncSession, server: Server) -> dict:
         "last_error": server.last_error, "created_at": _iso(server.created_at), "configs_count": configs,
         "containers": [{"container": c.container, "title": get_driver(c.container).title,
                         "port": c.params_json.get("port")} for c in containers],
+        "load": level[0] if level else "unknown", "load_pct": level[1] if level else None,
+        "bandwidth_mbps": server.bandwidth_mbps, "expected_clients": server.expected_clients,
+        "metrics_iface": server.metrics_iface,
     }
+
+
+async def _level(db: AsyncSession, server: Server, now: datetime) -> tuple:
+    return (await load_summary.levels(db, [server], now))[server.id]
 
 
 async def _get(db: AsyncSession, server_id: int) -> Server:
@@ -115,29 +129,68 @@ async def installable(_: AdminDep) -> list[dict]:
 
 
 @router.get("")
-async def list_servers(_: AdminDep, db: Db) -> list[dict]:
+async def list_servers(_: AdminDep, db: Db, clock: ClockDep) -> list[dict]:
     servers = (await db.execute(select(Server).order_by(Server.id))).scalars().all()
-    return [await server_out(db, s) for s in servers]
+    levels = await load_summary.levels(db, list(servers), clock.now())  # one query for all servers
+    return [await server_out(db, s, levels[s.id]) for s in servers]
 
 
 @router.get("/{server_id}")
-async def get_server(server_id: int, _: AdminDep, db: Db) -> dict:
-    return await server_out(db, await _get(db, server_id))
+async def get_server(server_id: int, _: AdminDep, db: Db, clock: ClockDep) -> dict:
+    server = await _get(db, server_id)
+    return await server_out(db, server, await _level(db, server, clock.now()))
+
+
+@router.get("/{server_id}/load")
+async def server_load(server_id: int, _: AdminDep, db: Db, clock: ClockDep,
+                      range: Literal["24h", "7d"] = "24h") -> dict:
+    server = await _get(db, server_id)
+    now = clock.now()
+    window = (await load_summary.windows(db, [server.id], now))[server.id]
+    history = await load_summary.history(db, server, now)
+    capacity = load_summary.capacity_of(server)
+    level, pct, _eligible = await _level(db, server, now)
+    containers = (await db.execute(select(ServerContainer.container).where(
+        ServerContainer.server_id == server.id, ServerContainer.container.in_(supported_containers())))).scalars()
+    untracked = sorted(get_driver(c).title for c in containers if not get_driver(c).traffic_counters)
+    specs = server.specs_json or {}
+    return {
+        "specs": specs, "specs_at": _iso(server.specs_at),
+        "current": await load_summary.last_sample(db, server.id, now),
+        "window": {name: {"avg": m.avg, "points": m.points, "last_at": _iso(m.last_at)}
+                   for name, m in (("cpu", window.cpu), ("mem", window.mem), ("net", window.net_mbps),
+                                   ("clients", window.clients))},
+        "level": level, "utilisation": pct,
+        "capacity": {"bandwidth_mbps": server.bandwidth_mbps, "expected_clients": server.expected_clients,
+                     "metrics_iface": server.metrics_iface},
+        "hints": {"link_mbps": specs.get("link_mbps"), "peak_mbps_7d": history.peak_net_mbps_7d},
+        "series": await load_summary.series(db, server.id, now, range),
+        "peaks": await load_summary.peaks(db, server.id, now, range),
+        "recommendations": [{"code": r.code, "severity": r.severity, "params": r.params}
+                            for r in recommendations(window, history, capacity, untracked, server.metrics_error,
+                                                     now)],
+        "untracked_protocols": untracked,
+        "metrics_error": server.metrics_error, "metrics_error_at": _iso(server.metrics_error_at),
+    }
 
 
 @router.patch("/{server_id}")
-async def patch_server(server_id: int, body: ServerPatch, admin: AdminDep, db: Db, box: SecretBoxDep) -> dict:
+async def patch_server(server_id: int, body: ServerPatch, admin: AdminDep, db: Db, box: SecretBoxDep,
+                       clock: ClockDep) -> dict:
     server = await _get(db, server_id)
     changes = body.model_dump(exclude_unset=True)
     for field in ("name", "enabled_for_users", "ssh_port", "ssh_user"):
         if changes.get(field) is not None:
+            setattr(server, field, changes[field])
+    for field in ("bandwidth_mbps", "expected_clients", "metrics_iface"):
+        if field in changes:  # an explicit null clears
             setattr(server, field, changes[field])
     if body.ssh_password or body.ssh_private_key:
         server.ssh_secret_enc = seal_ssh_secret(box, body.ssh_password, body.ssh_private_key)
     audit(db, admin.actor, "server_update", f"server:{server.id}",
           fields=sorted(k for k in changes if not k.startswith("ssh_password") and k != "ssh_private_key"))
     await db.commit()
-    return await server_out(db, server)
+    return await server_out(db, server, await _level(db, server, clock.now()))
 
 
 @router.delete("/{server_id}", status_code=204)

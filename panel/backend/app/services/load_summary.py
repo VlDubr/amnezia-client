@@ -124,3 +124,24 @@ async def series(db: AsyncSession, server_id: int, now: datetime, range_: Litera
         "GROUP BY b.bucket ORDER BY b.bucket"),
         {"id": server_id, "first": first, "last": last, "now": now, "origin": _ORIGIN})).all()
     return [_point(*row) for row in rows]
+
+
+async def peaks(db: AsyncSession, server_id: int, now: datetime, range_: Literal["24h", "7d"]) -> dict:
+    since = now - (timedelta(days=1) if range_ == "24h" else timedelta(days=7))
+    r = (await db.execute(text(
+        f"SELECT max(cpu_pct) AS cpu, max(mem_pct) AS mem, max({_NET}) AS net, max(active_clients) AS clients "
+        "FROM server_samples WHERE server_id = :id AND ts > :since AND ts <= :now"),
+        {"id": server_id, "since": since, "now": now})).mappings().one()
+    return {k: (float(v) if v is not None else None) for k, v in r.items()}
+
+
+async def last_sample(db: AsyncSession, server_id: int, now: datetime) -> dict | None:
+    r = (await db.execute(text(
+        "SELECT ts, cpu_pct, mem_pct, disk_pct, load1, rx_mbps, tx_mbps, active_clients, iface FROM server_samples "
+        "WHERE server_id = :id AND ts <= :now ORDER BY ts DESC LIMIT 1"),
+        {"id": server_id, "now": now})).mappings().one_or_none()
+    if r is None:
+        return None
+    return {"ts": r["ts"].isoformat(), "cpu": r["cpu_pct"], "mem": r["mem_pct"], "disk": r["disk_pct"],
+            "load1": r["load1"], "rx": r["rx_mbps"], "tx": r["tx_mbps"], "clients": r["active_clients"],
+            "iface": r["iface"]}

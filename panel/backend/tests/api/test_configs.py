@@ -31,8 +31,8 @@ async def _count(db, user_id) -> int:
 async def test_user_sees_enabled_servers(db, client, admin_token, app, fake_remote):
     server, _, token = await _setup(db, client, admin_token, app)
     r = await client.get("/api/me/servers", headers=bearer(token))
-    assert r.json() == [{"id": server["id"], "name": "nl-1",
-                         "containers": [{"container": AWG, "title": "AmneziaWG"}]}]
+    assert r.json() == [{"id": server["id"], "name": "nl-1", "containers": [{"container": AWG, "title": "AmneziaWG"}],
+                         "load": "unknown", "recommended": False}]
     await client.patch(f"/api/admin/servers/{server['id']}", json={"enabled_for_users": False},
                        headers=bearer(admin_token))
     assert (await client.get("/api/me/servers", headers=bearer(token))).json() == []

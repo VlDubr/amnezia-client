@@ -8,9 +8,11 @@ from app.api.audit import audit
 from app.api.deps import AdminDep, ClockDep, Db, UserDep
 from app.api.presenters import config_out, traffic_by_config
 from app.db.models import Config, Server, ServerContainer, TrafficDaily, User
+from app.domain.load import LEVEL_ORDER
 from app.domain.rules import user_can_unblock
 from app.drivers.base import get_driver, supported_containers
 from app.errors import ApiError
+from app.services import load_summary
 from app.services.configs import create_config, ensure_below_limit, ensure_user_active, export_config, lock_user
 from app.services.materials import unseal
 from app.services.sync import enqueue_server_sync
@@ -151,16 +153,27 @@ async def admin_assign(config_id: int, body: AssignIn, request: Request, admin: 
 
 
 @me_router.get("/servers")
-async def my_servers(_: UserDep, db: Db) -> list[dict]:
+async def my_servers(_: UserDep, db: Db, clock: ClockDep) -> list[dict]:
+    """Servers from the least loaded. Users get only the level and "recommended", never numbers (load spec §6)."""
     rows = (await db.execute(
         select(Server, ServerContainer.container).join(ServerContainer, ServerContainer.server_id == Server.id)
         .where(Server.enabled_for_users.is_(True), ServerContainer.container.in_(supported_containers()))
         .order_by(Server.name, Server.id, ServerContainer.container))).all()
-    servers: dict[int, dict] = {}
+    servers: dict[int, Server] = {}
+    containers: dict[int, list[dict]] = {}
     for server, container in rows:
-        entry = servers.setdefault(server.id, {"id": server.id, "name": server.name, "containers": []})
-        entry["containers"].append({"container": container, "title": get_driver(container).title})
-    return list(servers.values())
+        servers.setdefault(server.id, server)
+        containers.setdefault(server.id, []).append({"container": container, "title": get_driver(container).title})
+    levels = await load_summary.levels(db, list(servers.values()), clock.now())
+
+    def order(s: Server):
+        level, pct, _ = levels[s.id]
+        return LEVEL_ORDER[level], pct if pct is not None else float("inf"), s.name, s.id
+
+    ordered = sorted(servers.values(), key=order)
+    # Only the first server can be recommended, and only when it is eligible (no missing telemetry).
+    return [{"id": s.id, "name": s.name, "containers": containers[s.id], "load": levels[s.id][0],
+             "recommended": i == 0 and levels[s.id][2]} for i, s in enumerate(ordered)]
 
 
 @me_router.get("/configs")
