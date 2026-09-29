@@ -1,15 +1,15 @@
 # Amnezia VPN
 
 > [!IMPORTANT]
-> **> **This is a fork of [amnezia-amn/amnezia-client](https://github.com/amnezia-vpn/amnezia-client) with an added administrator web panel (Amnezia Panel).**
-> The panel allows you to distribute VPN access to multiple users: the administrator creates users, and they register themselves using the invitation key and receive the configurations in their personal account. For more details, see the section [“What’s added in this fork”](#what-is-added-in-this-fork). The rest of the description below refers to the original Amnezia VPN client.
+> **This is a fork of [amnezia-vpn/amnezia-client](https://github.com/amnezia-vpn/amnezia-client) with an added administrator web panel (Amnezia Panel).**
+> The panel shares VPN access among many users: the administrator creates users, who register with an invite key and get their configs in a personal web cabinet. See [What is added in this fork](#what-is-added-in-this-fork). The rest of this README describes the original AmneziaVPN client.
 
 ### _The best client for self-hosted VPN_
 
 [![Build Status](https://github.com/amnezia-vpn/amnezia-client/actions/workflows/deploy.yml/badge.svg?branch=dev)](https://github.com/amnezia-vpn/amnezia-client/actions/workflows/deploy.yml?query=branch:dev)
 [![Gitpod ready-to-code](https://img.shields.io/badge/Gitpod-ready--to--code-blue?logo=gitpod)](https://gitpod.io/#https://github.com/amnezia-vpn/amnezia-client)
 
-### [English]([https://github.com/amnezia-vpn/amnezia-client/blob/dev/README_RU.md](https://github.com/amnezia-vpn/amnezia-client/tree/dev?tab=readme-ov-file#)) | [Русский](https://github.com/VlDubr/amnezia-client/blob/dev/README_RU.md)
+### English | [Русский](README_RU.md)
 
 
 [Amnezia](https://amnezia.org?utm_source=github&utm_campaign=amnezia_website-readme-en) is an open-source VPN client, with a key feature that enables you to deploy your own VPN server on your server.
@@ -29,6 +29,51 @@
 <br/>
 
 <a href="https://www.testiny.io"><img src="https://github.com/amnezia-vpn/amnezia-client/blob/dev/metadata/img-readme/testiny.png" height="28px"></a>
+
+## What is added in this fork
+
+### Amnezia Panel: a web panel that shares VPN access among users
+
+A separate web application in [`panel/`](panel/README.md). It runs on its own VPS with `docker compose` and manages your Amnezia servers over SSH with the same scripts the app uses. Servers already set up with AmneziaVPN can be added to the panel together with their existing clients.
+
+**Administrators** (in the web admin area and in the AmneziaVPN app):
+
+- create users rather than single configs; each new user gets a one-time invite key for registration;
+- group servers into one cluster: a user can use every server of the cluster;
+- set a config limit and an access period; when the period ends, the user is blocked automatically;
+- block a user (all their configs stop working but are kept) and unblock them (the configs work again);
+- delete a user together with their configs;
+- show and copy an existing config again (`vpn://` key, file, QR code) to send it to the user;
+- see the traffic of each user and each server;
+- add servers, install protocols on them and import existing clients;
+- see each server's hardware, current load, 24-hour and 7-day charts and recommendations.
+
+**Users** (web cabinet):
+
+- sign in with a login and password;
+- register with the "Enter a key to register" button, choosing a login and a strong password; the key works once;
+- see the available servers with their load (low, medium or high) and the recommended one, and how many configs they can still create;
+- create configs under a name of their choice, and block, delete and copy them again; the connection in the AmneziaVPN app and the downloaded file get that name (the file name transliterated to Latin, e.g. `Moy_telefon.conf`);
+- change their password.
+
+**Protocols:** AmneziaWG, WireGuard, XRay (VLESS REALITY), OpenVPN, SOCKS5, Telemt, MTProxy and IKEv2 (only when already installed from the app). See the table in [panel/README.md](panel/README.md#supported-protocols).
+
+**Parts:**
+
+- `panel/backend`: Python, FastAPI, PostgreSQL; a background job queue keeps the servers in line with the database (blocks, access expiry, traffic) and samples the server load once a minute;
+- `panel/web`: the React web UI (Russian and English);
+- `panel/deploy`: a `docker compose` stack with Caddy (HTTPS, including a self-signed certificate for a server without a domain), the backend, PostgreSQL and daily backups.
+
+### Changes in the AmneziaVPN app
+
+- A new section, Settings → **Amnezia Panel**: panel administrator sign-in, the user list, creating a user with an invite key, the config limit and access period, blocking and deleting, issuing configs with a QR code, and traffic per server.
+- The panel administrator token is stored encrypted and is left out of the app's settings backups.
+- A panel with a self-signed certificate is trusted by its SHA-256 fingerprint, confirmed on the first sign-in.
+- Russian and Ukrainian translations of the new screens.
+
+### Install and try it out
+
+How to install the panel on a VPS and how to try it locally without VPN servers: [panel/README.md](panel/README.md).
 
 ## Features
 
