@@ -1,12 +1,15 @@
 # Amnezia VPN
 
-### _The best client for self-hosted VPN_
+> [!IMPORTANT]
+> **> **This is a fork of [amnezia-amn/amnezia-client](https://github.com/amnezia-vpn/amnezia-client) with an added administrator web panel (Amnezia Panel).**
+> The panel allows you to distribute VPN access to multiple users: the administrator creates users, and they register themselves using the invitation key and receive the configurations in their personal account. For more details, see the section [“What’s added in this fork”](#what-is-added-in-this-fork). The rest of the description below refers to the original Amnezia VPN client.
 
+### _The best client for self-hosted VPN_
 
 [![Build Status](https://github.com/amnezia-vpn/amnezia-client/actions/workflows/deploy.yml/badge.svg?branch=dev)](https://github.com/amnezia-vpn/amnezia-client/actions/workflows/deploy.yml?query=branch:dev)
 [![Gitpod ready-to-code](https://img.shields.io/badge/Gitpod-ready--to--code-blue?logo=gitpod)](https://gitpod.io/#https://github.com/amnezia-vpn/amnezia-client)
 
-### [English]([https://github.com/amnezia-vpn/amnezia-client/blob/dev/README_RU.md](https://github.com/amnezia-vpn/amnezia-client/tree/dev?tab=readme-ov-file#)) | [Русский](https://github.com/amnezia-vpn/amnezia-client/blob/dev/README_RU.md)
+### [English]([https://github.com/amnezia-vpn/amnezia-client/blob/dev/README_RU.md](https://github.com/amnezia-vpn/amnezia-client/tree/dev?tab=readme-ov-file#)) | [Русский](https://github.com/VlDubr/amnezia-client/blob/dev/README_RU.md)
 
 
 [Amnezia](https://amnezia.org?utm_source=github&utm_campaign=amnezia_website-readme-en) is an open-source VPN client, with a key feature that enables you to deploy your own VPN server on your server.
