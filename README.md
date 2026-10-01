@@ -53,7 +53,7 @@ A separate web application in [`panel/`](panel/README.md). It runs on its own VP
 - sign in with a login and password;
 - register with the "Enter a key to register" button, choosing a login and a strong password; the key works once;
 - see the available servers with their load (low, medium or high) and the recommended one, and how many configs they can still create;
-- create configs under a name of their choice, and block, delete and copy them again; the connection in the AmneziaVPN app and the downloaded file get that name (the file name transliterated to Latin, e.g. `Moy_telefon.conf`);
+- create configs under a name of their choice, and block, delete and copy them again; the connection in the AmneziaVPN app and the downloaded file get that name (the file name transliterated to Latin, e.g. `Moy_telefon.conf`); an Xray config also downloads as a JSON file, as in AmneziaVPN;
 - change their password.
 
 **Protocols:** AmneziaWG, WireGuard, XRay (VLESS REALITY), OpenVPN, SOCKS5, Telemt, MTProxy and IKEv2 (only when already installed from the app). See the table in [panel/README.md](panel/README.md#supported-protocols).

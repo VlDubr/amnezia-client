@@ -35,10 +35,19 @@ class ApplyResult:
 
 
 @dataclass
+class ExtraFile:
+    """Another download of the same config, e.g. the Xray client JSON."""
+    kind: str
+    filename: str
+    content: str
+
+
+@dataclass
 class Rendered:
     vpn_key: str
     native: str
     native_filename: str
+    extra_files: list[ExtraFile] = field(default_factory=list)
 
 
 class Driver(Protocol):

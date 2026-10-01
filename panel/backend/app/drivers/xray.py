@@ -10,7 +10,8 @@ import urllib.parse
 import uuid
 from typing import Any
 
-from app.drivers.base import ApplyResult, ClientInfo, ClientMaterial, Counter, Rendered, register
+from app.domain.filenames import download_filename
+from app.drivers.base import ApplyResult, ClientInfo, ClientMaterial, Counter, ExtraFile, Rendered, register
 from app.render.vpnkey import encode_vpn_key
 from app.ssh.conn import Remote, RemoteError
 
@@ -237,8 +238,11 @@ class XrayDriver:
             "dns2": dns[1],
             "hostName": host,
         }
+        # The JSON file is what the Qt client saves as "XRay native format" (ExportController::generateXrayConfig).
+        client_json = ExtraFile("xray_json", download_filename(description, "json"),
+                                json.dumps(client, indent=4, ensure_ascii=False) + "\n")
         return Rendered(encode_vpn_key(doc), self._vless_link(client_id, flow, params, host, description),
-                        "vless.txt")
+                        download_filename(description, "txt"), [client_json])
 
 
 register(XrayDriver())

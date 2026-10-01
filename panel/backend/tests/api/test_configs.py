@@ -51,6 +51,7 @@ async def test_create_and_export_config(db, client, admin_token, app, fake_remot
     export = detail["export"]
     assert export["native"].startswith("[Interface]") and "Address = 10.8.1.3/32" in export["native"]
     assert export["qr_svg"].startswith("<svg") and export["native_filename"] == "Phone.conf"
+    assert export["files"] == []
     doc = decode_vpn_key(export["vpn_key"])
     assert doc["hostName"] == "203.0.113.10" and doc["description"] == "Phone"
     assert json.loads(doc["containers"][0]["awg"]["last_config"])["clientId"] == cfg["client_id"]
@@ -236,6 +237,17 @@ async def test_service_export_has_qr_of_the_link(db, client, admin_token, app, f
     from app.render.qr import qr_svg
 
     assert export["qr_svg"] == qr_svg("tg://proxy?server=h&port=1&secret=ee00")  # QR of the link, not of ""
+
+
+async def test_export_lists_the_extra_files(db, client, admin_token, app, fake_remote, monkeypatch):
+    from app.drivers.base import ExtraFile, Rendered, get_driver
+
+    server, _, token = await _setup(db, client, admin_token, app)
+    cfg = (await _create(client, token, server["id"])).json()
+    monkeypatch.setattr(get_driver(AWG), "render", lambda *a, **k: Rendered(
+        "vpn://K", "vless://x", "Phone.txt", [ExtraFile("xray_json", "Phone.json", "{}\n")]))
+    export = (await client.get(f"/api/me/configs/{cfg['id']}", headers=bearer(token))).json()["export"]
+    assert export["files"] == [{"kind": "xray_json", "filename": "Phone.json", "content": "{}\n"}]
 
 
 async def test_full_server_gets_a_clear_error(db, client, admin_token, app, fake_remote, monkeypatch):

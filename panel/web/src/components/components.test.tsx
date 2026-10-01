@@ -10,6 +10,7 @@ const EXPORT = {
   vpn_key: "vpn://AAAA",
   native: "[Interface]\nPrivateKey = x\n",
   native_filename: "nl-1.conf",
+  files: [],
   qr_svg: '<svg xmlns="http://www.w3.org/2000/svg" data-testid="qr"></svg>',
 };
 
@@ -23,6 +24,24 @@ describe("ShareModal", () => {
     expect(link).toHaveAttribute("download", "nl-1.conf");
     expect(screen.getByTestId("qr")).toBeInTheDocument();
     expect(screen.getByTestId("qr").parentElement).toHaveClass("panel-qr"); // CSS scales the SVG to the box
+  });
+
+  it("offers the Xray client JSON as a second download", () => {
+    const json = '{\n    "log": {}\n}\n';
+    renderUi(
+      <ShareModal
+        opened
+        name="Phone"
+        data={{ ...EXPORT, native: "vless://id@h:443", native_filename: "Phone.txt",
+                files: [{ kind: "xray_json", filename: "Phone.json", content: json }] }}
+        onClose={() => {}}
+      />,
+    );
+    const links = screen.getAllByRole("link", { name: /Скачать/ });
+    expect(links.map((l) => l.getAttribute("download"))).toEqual(["Phone.txt", "Phone.json"]);
+    expect(links[1]).toHaveAttribute("href", `data:application/json;charset=utf-8,${encodeURIComponent(json)}`);
+    expect(screen.getByText("Конфиг Xray в формате JSON (как в AmneziaVPN)")).toBeInTheDocument();
+    expect(screen.getByText(/"log": \{\}/)).toBeInTheDocument();
   });
 
   it("does not render a QR that is not an SVG document", () => {

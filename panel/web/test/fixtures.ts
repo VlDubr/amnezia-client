@@ -6,6 +6,7 @@ export const EXPORT = {
   vpn_key: "vpn://KEY",
   native: "[Interface]\nPrivateKey = x\n",
   native_filename: "nl-1.conf",
+  files: [],
   qr_svg: "<svg xmlns='http://www.w3.org/2000/svg'></svg>",
 };
 

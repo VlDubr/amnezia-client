@@ -124,6 +124,21 @@ async def test_render_client_json_and_vless_link():
     assert urllib.parse.unquote(link.fragment) == "NL"
 
 
+async def test_downloads_are_named_after_the_config_and_include_the_client_json():
+    remote = xray_remote()
+    driver = get_driver(XRAY)
+    params = await driver.read_params(remote)
+    material = ClientMaterial(UUID_B, {"secret": UUID_B, "flow": "xtls-rprx-vision"})
+    out = driver.render(material, params, "vpn.example.com", ("1.1.1.1", "1.0.0.1"), "Мой ноутбук")
+    assert out.native_filename == "Moy_noutbuk.txt"
+    [extra] = out.extra_files
+    assert extra.kind == "xray_json" and extra.filename == "Moy_noutbuk.json"
+    # The same client config the AmneziaVPN key carries, as the Qt client's "XRay native format" file.
+    last_config = json.loads(decode_vpn_key(out.vpn_key)["containers"][0]["xray"]["last_config"])
+    assert json.loads(extra.content) == last_config
+    assert extra.content.startswith("{\n    \"log\"") and extra.content.endswith("}\n")
+
+
 async def test_before_start_writes_initial_reality_config():
     remote = FakeRemote([XRAY])
     remote.files[(XRAY, "/opt/amnezia/xray/xray_uuid.key")] = UUID_A + "\n"

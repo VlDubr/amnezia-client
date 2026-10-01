@@ -22,7 +22,10 @@ export type LoadLevel = "low" | "medium" | "high" | "unknown";
 
 export type MyServer = { id: number; name: string; containers: ContainerRef[]; load: LoadLevel; recommended: boolean };
 
-export type Export = { vpn_key: string; native: string; native_filename: string; qr_svg: string };
+/** Another download of the same config, e.g. the Xray client JSON (`kind` names its label). */
+export type ExportFile = { kind: string; filename: string; content: string };
+
+export type Export = { vpn_key: string; native: string; native_filename: string; files: ExportFile[]; qr_svg: string };
 
 export type Config = {
   id: number;
