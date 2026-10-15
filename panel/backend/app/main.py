@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.api import admin_servers, admin_users, audit, auth, configs, jobs, me, traffic
+from app.api import admin_accounts, admin_servers, admin_users, audit, auth, configs, jobs, me, traffic
 from app.config import Settings, get_settings
 from app.db.base import make_engine, make_sessionmaker
 from app.domain.clock import Clock, SystemClock
@@ -73,6 +73,7 @@ def create_app(settings: Settings | None = None,
         "login_name": RateLimiter(5, 60, clock),
         "login_ip": RateLimiter(20, 60, clock),
         "invite_ip": RateLimiter(10, 3600, clock),
+        "reset_ip": RateLimiter(10, 3600, clock),
     }
     install_error_handlers(app)
 
@@ -86,6 +87,7 @@ def create_app(settings: Settings | None = None,
     app.include_router(jobs.router)
     app.include_router(admin_servers.router)
     app.include_router(admin_users.router)
+    app.include_router(admin_accounts.router)
     app.include_router(configs.admin_router)
     app.include_router(configs.me_router)
     app.include_router(traffic.router)

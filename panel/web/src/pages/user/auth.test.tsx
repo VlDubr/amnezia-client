@@ -106,6 +106,53 @@ describe("user login", () => {
   });
 });
 
+describe("password reset", () => {
+  it("checks the key, compares the repeat, then sets the new password", async () => {
+    anonymous();
+    const calls: unknown[] = [];
+    server.use(
+      http.post("/api/auth/reset/check", async ({ request }) => {
+        calls.push(await request.json());
+        return HttpResponse.json({ login: "ivan" });
+      }),
+      http.post("/api/auth/reset", async ({ request }) => {
+        calls.push(await request.json());
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const { router } = renderApp("/login");
+    await userEvent.click(await screen.findByRole("link", { name: "Забыли пароль?" }));
+    await userEvent.type(await screen.findByLabelText(/Ключ/), "ABCD-EFGH");
+    await userEvent.click(screen.getByRole("button", { name: "Далее" }));
+    expect(await screen.findByText("Новый пароль для логина ivan")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/^Новый пароль/), "Vq7#mZ2!rT9p@Lx");
+    await userEvent.type(screen.getByLabelText(/Повторите новый пароль/), "Vq7#mZ2!rT9p@Lx-typo");
+    await userEvent.click(screen.getByRole("button", { name: "Сменить пароль" }));
+    expect(await screen.findByText("Пароли не совпадают")).toBeInTheDocument();
+    expect(calls).toHaveLength(1);
+    await userEvent.clear(screen.getByLabelText(/Повторите новый пароль/));
+    await userEvent.type(screen.getByLabelText(/Повторите новый пароль/), "Vq7#mZ2!rT9p@Lx");
+    await userEvent.click(screen.getByRole("button", { name: "Сменить пароль" }));
+    expect(await screen.findByText(/Пароль изменён/)).toBeInTheDocument();
+    expect(calls).toEqual([{ key: "ABCD-EFGH" }, { key: "ABCD-EFGH", password: "Vq7#mZ2!rT9p@Lx" }]);
+    await userEvent.click(screen.getByRole("link", { name: "Войти" }));
+    expect(router.state.location.pathname).toBe("/login");
+  });
+
+  it("rejects an expired key", async () => {
+    anonymous();
+    server.use(
+      http.post("/api/auth/reset/check", () =>
+        HttpResponse.json({ code: "reset_invalid", message: "" }, { status: 404 }),
+      ),
+    );
+    renderApp("/reset");
+    await userEvent.type(await screen.findByLabelText(/Ключ/), "OLD");
+    await userEvent.click(screen.getByRole("button", { name: "Далее" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Ключ недействителен, истёк или уже использован");
+  });
+});
+
 describe("invite registration", () => {
   it("checks the key as typed, then registers", async () => {
     const s = anonymous();

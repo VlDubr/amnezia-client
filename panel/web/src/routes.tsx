@@ -1,6 +1,7 @@
 import { Navigate, useLocation, type RouteObject } from "react-router";
 import { RequireRole } from "./auth/session";
 import { AppLayout } from "./components/AppLayout";
+import AdminsPage from "./pages/admin/AdminsPage";
 import AuditPage from "./pages/admin/AuditPage";
 import OrphansPage from "./pages/admin/OrphansPage";
 import ServerPage from "./pages/admin/ServerPage";
@@ -11,6 +12,7 @@ import AccountPage from "./pages/user/AccountPage";
 import DashboardPage from "./pages/user/DashboardPage";
 import InvitePage from "./pages/user/InvitePage";
 import LoginPage from "./pages/user/LoginPage";
+import ResetPasswordPage from "./pages/user/ResetPasswordPage";
 
 /** The former administrator sign-in address: the one sign-in page now serves every account. */
 function OldAdminLogin() {
@@ -21,6 +23,7 @@ function OldAdminLogin() {
 export const routes: RouteObject[] = [
   { path: "/login", element: <LoginPage /> },
   { path: "/invite", element: <InvitePage /> },
+  { path: "/reset", element: <ResetPasswordPage /> },
   { path: "/admin/login", element: <OldAdminLogin /> },
   {
     path: "/",
@@ -48,6 +51,7 @@ export const routes: RouteObject[] = [
       { path: "servers", element: <ServersPage /> },
       { path: "servers/:id", element: <ServerPage /> },
       { path: "orphans", element: <OrphansPage /> },
+      { path: "admins", element: <AdminsPage /> },
       { path: "audit", element: <AuditPage /> },
     ],
   },

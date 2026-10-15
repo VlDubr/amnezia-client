@@ -172,6 +172,19 @@ describe("admin user page", () => {
     expect(screen.queryByRole("button", { name: "Выпустить новый ключ" })).toBeNull();
   });
 
+  it("issues a password reset key for a registered user", async () => {
+    userPage(detail());
+    server.use(
+      http.post("/api/admin/accounts/1/reset-key", () =>
+        HttpResponse.json({ reset_key: "RESET-KEY", expires_at: "2026-09-27T12:00:00Z" })),
+    );
+    renderApp("/admin/users/1");
+    await userEvent.click(await screen.findByRole("button", { name: "Ключ сброса пароля" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Да" }));
+    expect(await screen.findByDisplayValue("RESET-KEY")).toBeInTheDocument();
+    expect(screen.getByText(/Действует до/)).toBeInTheDocument();
+  });
+
   it("issues a config for the user", async () => {
     userPage(detail());
     let body: unknown = null;
@@ -251,5 +264,22 @@ describe("admin user page", () => {
     const row = (await screen.findByText("Phone")).closest("tr")!;
     await userEvent.click(within(row).getByRole("button", { name: "Разблокировать" }));
     await waitFor(() => expect(called).toBe(true));
+  });
+});
+
+describe("admin accounts", () => {
+  it("issues a password reset key for another administrator", async () => {
+    adminSession();
+    server.use(
+      http.get("/api/admin/admins", () =>
+        HttpResponse.json([{ id: 7, login: "second", display_name: "second", created_at: "2026-09-01T00:00:00Z" }])),
+      http.post("/api/admin/accounts/7/reset-key", () =>
+        HttpResponse.json({ reset_key: "ADMIN-RESET", expires_at: "2026-09-27T12:00:00Z" })),
+    );
+    renderApp("/admin/admins");
+    const row = (await screen.findByText("second")).closest("tr")!;
+    await userEvent.click(within(row).getByRole("button", { name: "Ключ сброса пароля" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Да" }));
+    expect(await screen.findByDisplayValue("ADMIN-RESET")).toBeInTheDocument();
   });
 });

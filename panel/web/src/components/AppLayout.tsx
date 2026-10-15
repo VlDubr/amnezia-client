@@ -11,6 +11,7 @@ const ADMIN_LINKS = [
   { to: "/admin/users", label: "admin.users" },
   { to: "/admin/servers", label: "admin.servers" },
   { to: "/admin/orphans", label: "admin.orphans" },
+  { to: "/admin/admins", label: "admin.admins" },
   { to: "/admin/audit", label: "admin.audit" },
 ];
 

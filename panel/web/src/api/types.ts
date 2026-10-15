@@ -59,6 +59,10 @@ export type AdminUser = {
   created_at: string;
 };
 
+export type AdminAccount = { id: number; login: string; display_name: string; created_at: string };
+
+export type ResetKey = { reset_key: string; expires_at: string };
+
 export type AdminUserDetail = AdminUser & {
   configs: Config[];
   traffic_by_server: { server_id: number; server_name: string; rx: number; tx: number }[];

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { api } from "./client";
 import type {
+  AdminAccount,
   AdminUser,
   AdminUserDetail,
   AuditEntry,
@@ -25,6 +26,7 @@ export const keys = {
   orphans: ["admin", "orphans"] as const,
   traffic: (params: string) => ["admin", "traffic", params] as const,
   audit: ["admin", "audit"] as const,
+  admins: ["admin", "admins"] as const,
 };
 
 export const useMe = () => useQuery({ queryKey: keys.me, queryFn: () => api<Me>("/api/me") });
@@ -57,6 +59,8 @@ export const useOrphans = () =>
   useQuery({ queryKey: keys.orphans, queryFn: () => api<Config[]>("/api/admin/configs?orphan=true") });
 export const useTraffic = (params: URLSearchParams) =>
   useQuery({ queryKey: keys.traffic(params.toString()), queryFn: () => api<TrafficReport>(`/api/admin/traffic?${params}`) });
+export const useAdmins = () =>
+  useQuery({ queryKey: keys.admins, queryFn: () => api<AdminAccount[]>("/api/admin/admins") });
 export const useAudit = () =>
   useQuery({ queryKey: keys.audit, queryFn: () => api<AuditEntry[]>("/api/admin/audit?limit=100") });
 

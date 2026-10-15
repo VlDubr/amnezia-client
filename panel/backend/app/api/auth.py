@@ -3,7 +3,7 @@ import secrets
 
 from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,7 +19,7 @@ from app.api.deps import (
     check_rate,
     client_ip,
 )
-from app.db.models import ROLE_USER, InviteKey, Session, User
+from app.db.models import KEY_INVITE, KEY_RESET, ROLE_USER, InviteKey, Session, User
 from app.domain.clock import Clock
 from app.errors import ApiError
 from app.security.passwords import hash_password, validate_password, verify_password
@@ -45,6 +45,11 @@ class InviteCheckIn(BaseModel):
 class InviteRedeemIn(BaseModel):
     key: str
     login: str
+    password: str
+
+
+class ResetIn(BaseModel):
+    key: str
     password: str
 
 
@@ -105,11 +110,16 @@ async def session_info(principal: PrincipalDep, db: Db) -> dict:
     return {"role": principal.role, "id": principal.subject_id, "login": account.login}
 
 
-async def _find_invite(db: AsyncSession, key: str) -> InviteKey:
-    invite = (await db.execute(
+async def _find_key(db: AsyncSession, key: str) -> InviteKey | None:
+    return (await db.execute(
         select(InviteKey).where(InviteKey.key_hash == sha256_hex(normalize_invite_key(key))).with_for_update()
     )).scalar_one_or_none()
-    if invite is None or invite.used_at is not None or invite.revoked_at is not None:
+
+
+async def _find_invite(db: AsyncSession, key: str) -> InviteKey:
+    invite = await _find_key(db, key)
+    if (invite is None or invite.purpose != KEY_INVITE or invite.used_at is not None
+            or invite.revoked_at is not None):
         raise ApiError(404, "invite_invalid", "the key is invalid or already used")
     user = await db.get(User, invite.user_id)
     if user.role != ROLE_USER or user.deleting_at is not None or user.login is not None:
@@ -151,3 +161,37 @@ async def invite_redeem(body: InviteRedeemIn, request: Request, response: Respon
     audit(db, f"user:{user.id}", "invite_redeem", f"user:{user.id}", ip=client_ip(request))
     await db.commit()
     return out
+
+
+async def _find_reset(db: AsyncSession, key: str, clock: Clock) -> tuple[InviteKey, User]:
+    reset = await _find_key(db, key)
+    if (reset is None or reset.purpose != KEY_RESET or reset.used_at is not None or reset.revoked_at is not None
+            or reset.expires_at <= clock.now()):
+        raise ApiError(404, "reset_invalid", "the key is invalid, expired or already used")
+    account = await db.get(User, reset.user_id)
+    if account.deleting_at is not None or account.login is None:
+        raise ApiError(404, "reset_invalid", "the key is invalid, expired or already used")
+    return reset, account
+
+
+@router.post("/reset/check")
+async def reset_check(body: InviteCheckIn, request: Request, db: Db, clock: ClockDep) -> dict:
+    check_rate(request, "reset_ip", client_ip(request))
+    _, account = await _find_reset(db, body.key, clock)
+    return {"login": account.login}
+
+
+@router.post("/reset", status_code=204)
+async def reset_password(body: ResetIn, request: Request, db: Db, clock: ClockDep) -> None:
+    """The old password stays valid until the key holder sets a new one; then every session is signed out."""
+    check_rate(request, "reset_ip", client_ip(request))
+    reset, account = await _find_reset(db, body.key, clock)
+    raise_password_errors(body.password, [account.login, account.display_name])
+    now = clock.now()
+    account.password_hash = hash_password(body.password)
+    reset.used_at = now
+    await db.execute(update(Session).where(Session.user_id == account.id, Session.revoked_at.is_(None))
+                     .values(revoked_at=now))
+    actor = f"{account.role}:{account.id}"
+    audit(db, actor, "password_reset", actor, ip=client_ip(request))
+    await db.commit()

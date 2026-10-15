@@ -9,6 +9,7 @@ import { ConfigsTable } from "../../components/ConfigsTable";
 import { confirmAction } from "../../components/confirm";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { InviteKeyModal } from "../../components/InviteKeyModal";
+import { ResetKeyButton } from "../../components/ResetKeyButton";
 import { StatusBadge } from "../../components/StatusBadge";
 import { TrafficChart } from "../../components/TrafficChart";
 import { useShare } from "../../components/useShare";
@@ -92,7 +93,9 @@ export default function UserPage() {
           </Group>
         </Stack>
         <Group gap="xs">
-          {!u.registered && (
+          {u.registered ? (
+            <ResetKeyButton accountId={u.id} name={u.display_name} />
+          ) : (
             <Button variant="light" onClick={() => confirmAction(t("admin.reissue_confirm"), () => reissue.mutate(), false)}>
               {t("admin.reissue_invite")}
             </Button>

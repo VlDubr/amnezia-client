@@ -10,6 +10,9 @@ export default function LoginPage() {
     <AuthLayout title={t("auth.login_title")}>
       <Stack>
         <LoginForm />
+        <Anchor component={Link} to="/reset" ta="center" size="sm">
+          {t("auth.forgot_password")}
+        </Anchor>
         <Anchor component={Link} to="/invite" ta="center" size="sm">
           {t("auth.have_key")}
         </Anchor>

@@ -32,6 +32,9 @@ def _created() -> Mapped[datetime]:
 ROLE_ADMIN = "admin"
 ROLE_USER = "user"
 
+KEY_INVITE = "invite"
+KEY_RESET = "reset"
+
 
 class User(Base):
     """Every account. Administrators have role 'admin' and none of the user limits or configs."""
@@ -55,11 +58,16 @@ class User(Base):
 
 
 class InviteKey(Base):
+    """One-time keys: 'invite' registers an account, 'reset' sets a new password for a registered one."""
+
     __tablename__ = "invite_keys"
+    __table_args__ = (CheckConstraint("purpose IN ('invite', 'reset')", name="purpose"),)
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     key_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    purpose: Mapped[str] = mapped_column(String(8), default=KEY_INVITE, server_default=KEY_INVITE)
     created_at: Mapped[datetime] = _created()
+    expires_at: Mapped[datetime | None] = mapped_column(TS)
     used_at: Mapped[datetime | None] = mapped_column(TS)
     revoked_at: Mapped[datetime | None] = mapped_column(TS)
 
