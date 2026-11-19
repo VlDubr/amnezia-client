@@ -185,7 +185,18 @@
     "owner": "Owner",
     "server_name": "Name",
     "reinstall_confirm": "The protocol is already installed. Reinstalling creates new server keys and every config issued on it stops working. Reinstall?",
-    "load_more": "Load more"
+    "load_more": "Load more",
+    "xray_options": "Xray config profiles",
+    "xray_options_hint": "Client profile parameters of this server. The server itself is not modified; the options apply when configs are issued — re-download them on the devices after saving.",
+    "xray_mobile_fp": "Mobile profile fingerprint",
+    "xray_mihomo_fp": "mihomo (Clash) fingerprint",
+    "xray_frag_length": "Fragment length (from-to)",
+    "xray_frag_interval": "Fragment interval, ms (from-to)",
+    "xray_spider": "Spider path (optional)",
+    "xray_range_error": "Two numbers \"from-to\": from ≤ to, at most 65535",
+    "xray_spider_error": "A path from /, at most 256 characters, no control characters",
+    "xray_reset": "Reset to defaults",
+    "xray_saved_hint": "Saved. Re-issue the configs to apply the options."
   },
   "errors": {
     "invalid_credentials": "Wrong login or password",

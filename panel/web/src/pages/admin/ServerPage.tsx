@@ -8,6 +8,7 @@ import { confirmAction } from "../../components/confirm";
 import { ServerLoadSection } from "../../components/ServerLoadSection";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { JobStatus } from "../../components/JobStatus";
+import { XrayOptionsSection } from "../../components/XrayOptionsSection";
 import { formatDateTime } from "../../lib/format";
 
 type Job = { job_id: number };
@@ -130,6 +131,8 @@ export default function ServerPage() {
           )}
         </Stack>
       </Card>
+
+      {s.containers.some((c) => c.container === "amnezia-xray") && <XrayOptionsSection serverId={id} />}
 
       <ServerLoadSection serverId={id} />
 

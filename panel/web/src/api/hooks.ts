@@ -9,6 +9,7 @@ import type {
   Job,
   Me,
   MyServer,
+  RenderOptionsOut,
   ServerInfo,
   ServerLoad,
   TrafficReport,
@@ -23,6 +24,7 @@ export const keys = {
   servers: ["admin", "servers"] as const,
   server: (id: number) => ["admin", "server", id] as const,
   serverLoad: (id: number, range: string) => ["admin", "server", id, "load", range] as const,
+  renderOptions: (id: number, container: string) => ["admin", "server", id, "render-options", container] as const,
   orphans: ["admin", "orphans"] as const,
   traffic: (params: string) => ["admin", "traffic", params] as const,
   audit: ["admin", "audit"] as const,
@@ -49,6 +51,11 @@ export const useServers = () =>
   useQuery({ queryKey: keys.servers, queryFn: () => api<ServerInfo[]>("/api/admin/servers"), refetchInterval: 60_000 });
 export const useServer = (id: number) =>
   useQuery({ queryKey: keys.server(id), queryFn: () => api<ServerInfo>(`/api/admin/servers/${id}`) });
+export const useRenderOptions = (id: number, container: string) =>
+  useQuery({
+    queryKey: keys.renderOptions(id, container),
+    queryFn: () => api<RenderOptionsOut>(`/api/admin/servers/${id}/containers/${container}/render-options`),
+  });
 export const useInstallable = () =>
   useQuery({
     queryKey: ["admin", "installable"],

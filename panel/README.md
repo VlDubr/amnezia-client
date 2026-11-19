@@ -55,7 +55,7 @@ After any save or reinstall in the AmneziaVPN UI, wait for the next panel sync, 
 
 #### Tuning the profiles
 
-The admin can override the render parameters per server container without touching the server:
+In the web cabinet the settings live on the server page (Servers → the server → "Xray config profiles"), shown when the server runs `amnezia-xray`. The same is available over the admin API, without touching the server:
 
 ```bash
 curl -X PATCH https://panel.example/api/admin/servers/1/containers/amnezia-xray/render-options \

@@ -58,7 +58,7 @@ OpenVPN over Cloak, OpenVPN over ShadowSocks и ShadowSocks over Xray не по�
 
 #### Настройка профилей
 
-Администратор может переопределить параметры рендера для контейнера сервера, не трогая сам сервер:
+В веб-кабинете настройки находятся на странице сервера (Серверы → сервер → «Настройки Xray-конфигов»), блок виден, когда на сервере запущен `amnezia-xray`. То же доступно через admin API, не трогая сам сервер:
 
 ```bash
 curl -X PATCH https://panel.example/api/admin/servers/1/containers/amnezia-xray/render-options \

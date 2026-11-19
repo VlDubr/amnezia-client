@@ -182,6 +182,113 @@ describe("server page", () => {
     ]));
   });
 
+  it("shows xray render options and saves only the overrides", async () => {
+    page(srv({ containers: [{ container: "amnezia-xray", title: "XRay", port: "443" }] }));
+    const effective = { mobile_fingerprint: "firefox", fragment: { length: "100-200", interval: "10-20" },
+                        mihomo_fingerprint: "chrome", spider_x: "" };
+    let patched: unknown = null;
+    server.use(
+      http.get("/api/admin/servers/10/containers/amnezia-xray/render-options", () =>
+        HttpResponse.json({ container: "amnezia-xray", options: {}, effective })),
+      http.patch("/api/admin/servers/10/containers/amnezia-xray/render-options", async ({ request }) => {
+        patched = await request.json();
+        return HttpResponse.json({ container: "amnezia-xray", options: patched,
+                                   effective: { ...effective, mobile_fingerprint: "ios",
+                                                fragment: { length: "50-100", interval: "10-20" } } });
+      }),
+    );
+    renderApp("/admin/servers/10");
+    expect(await screen.findByRole("button", { name: "Сохранить" })).toBeDisabled();  // nothing changed yet
+    await userEvent.click(await screen.findByRole("radio", { name: "ios" }));
+    const length = screen.getByLabelText(/Длина фрагмента/);
+    await userEvent.clear(length);
+    await userEvent.type(length, "50-100");
+    await userEvent.click(screen.getByRole("button", { name: "Сохранить" }));
+    expect(await screen.findByText(/Сохранено\. Перевыдайте конфиги/)).toBeInTheDocument();
+    // only the changed fields are sent; a changed field back at its default would be sent as null
+    expect(patched).toEqual({ mobile_fingerprint: "ios", fragment: { length: "50-100" } });
+  });
+
+  it("does not overwrite another admin's untouched overrides", async () => {
+    page(srv({ containers: [{ container: "amnezia-xray", title: "XRay", port: "443" }] }));
+    let patched: unknown = null;
+    server.use(
+      http.get("/api/admin/servers/10/containers/amnezia-xray/render-options", () =>
+        HttpResponse.json({ container: "amnezia-xray", options: { spider_x: "/blog", mihomo_fingerprint: "firefox" },
+                            effective: { mobile_fingerprint: "firefox", fragment: { length: "100-200", interval: "10-20" },
+                                         mihomo_fingerprint: "firefox", spider_x: "/blog" } })),
+      http.patch("/api/admin/servers/10/containers/amnezia-xray/render-options", async ({ request }) => {
+        patched = await request.json();
+        return HttpResponse.json({ container: "amnezia-xray", options: patched,
+                                   effective: { mobile_fingerprint: "ios", fragment: { length: "100-200", interval: "10-20" },
+                                                mihomo_fingerprint: "firefox", spider_x: "/blog" } });
+      }),
+    );
+    renderApp("/admin/servers/10");
+    await userEvent.click(await screen.findByRole("radio", { name: "ios" }));
+    await userEvent.click(screen.getByRole("button", { name: "Сохранить" }));
+    await waitFor(() => expect(patched).toEqual({ mobile_fingerprint: "ios" }));
+  });
+
+  it("blocks saving an overlong spider path", async () => {
+    page(srv({ containers: [{ container: "amnezia-xray", title: "XRay", port: "443" }] }));
+    server.use(
+      http.get("/api/admin/servers/10/containers/amnezia-xray/render-options", () =>
+        HttpResponse.json({ container: "amnezia-xray", options: {},
+                            effective: { mobile_fingerprint: "firefox", fragment: { length: "100-200", interval: "10-20" },
+                                         mihomo_fingerprint: "chrome", spider_x: "" } })),
+    );
+    renderApp("/admin/servers/10");
+    const spider = await screen.findByLabelText(/Spider-путь/);
+    await userEvent.type(spider, "/" + "a".repeat(256));
+    expect(screen.getByRole("button", { name: "Сохранить" })).toBeDisabled();
+  });
+
+  it("resets xray options to the defaults", async () => {
+    page(srv({ containers: [{ container: "amnezia-xray", title: "XRay", port: "443" }] }));
+    let patched: unknown = null;
+    server.use(
+      http.get("/api/admin/servers/10/containers/amnezia-xray/render-options", () =>
+        HttpResponse.json({ container: "amnezia-xray", options: { mobile_fingerprint: "ios" },
+                            effective: { mobile_fingerprint: "ios", fragment: { length: "50-100", interval: "10-20" },
+                                         mihomo_fingerprint: "chrome", spider_x: "" } })),
+      http.patch("/api/admin/servers/10/containers/amnezia-xray/render-options", async ({ request }) => {
+        patched = await request.json();
+        return HttpResponse.json({ container: "amnezia-xray", options: {},
+                                   effective: { mobile_fingerprint: "firefox",
+                                                fragment: { length: "100-200", interval: "10-20" },
+                                                mihomo_fingerprint: "chrome", spider_x: "" } });
+      }),
+    );
+    renderApp("/admin/servers/10");
+    await userEvent.click(await screen.findByRole("button", { name: "Сбросить к умолчаниям" }));
+    await waitFor(() => expect(patched).toEqual({ mobile_fingerprint: null, fragment: { length: null, interval: null },
+                                                  mihomo_fingerprint: null, spider_x: null }));
+  });
+
+  it("blocks saving an invalid fragment range", async () => {
+    page(srv({ containers: [{ container: "amnezia-xray", title: "XRay", port: "443" }] }));
+    server.use(
+      http.get("/api/admin/servers/10/containers/amnezia-xray/render-options", () =>
+        HttpResponse.json({ container: "amnezia-xray", options: {},
+                            effective: { mobile_fingerprint: "firefox", fragment: { length: "100-200", interval: "10-20" },
+                                         mihomo_fingerprint: "chrome", spider_x: "" } })),
+    );
+    renderApp("/admin/servers/10");
+    const length = await screen.findByLabelText(/Длина фрагмента/);
+    await userEvent.clear(length);
+    await userEvent.type(length, "200-100");
+    expect(screen.getByRole("button", { name: "Сохранить" })).toBeDisabled();
+    expect(screen.getAllByText(/Два числа «от-до»/).length).toBeGreaterThan(0);
+  });
+
+  it("hides xray options when the container is not installed", async () => {
+    page(srv());  // AmneziaWG only
+    renderApp("/admin/servers/10");
+    await screen.findByText("nl-1");
+    expect(screen.queryByText("Настройки Xray-конфигов")).not.toBeInTheDocument();
+  });
+
   it("removes the server from the panel", async () => {
     page(srv());
     let deleted = false;

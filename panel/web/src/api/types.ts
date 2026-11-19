@@ -89,6 +89,24 @@ export type ServerInfo = {
   metrics_iface: string | null;
 };
 
+export type XrayRenderOptionsPatch = {
+  mobile_fingerprint?: "firefox" | "ios" | null;
+  fragment?: { length?: string | null; interval?: string | null } | null;
+  mihomo_fingerprint?: string | null;
+  spider_x?: string | null;
+};
+
+export type RenderOptionsOut = {
+  container: string;
+  options: XrayRenderOptionsPatch;
+  effective: {
+    mobile_fingerprint: string;
+    fragment: { length: string; interval: string };
+    mihomo_fingerprint: string;
+    spider_x: string;
+  };
+};
+
 export type LoadPoint = { ts: string; cpu: number | null; mem: number | null; rx: number | null; tx: number | null; clients: number | null };
 
 type MetricWindow = { avg: number | null; points: number; last_at: string | null };
