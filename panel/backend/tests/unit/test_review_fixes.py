@@ -253,6 +253,23 @@ async def test_install_refuses_existing_container_without_force(db, client, admi
     assert r.status_code == 202
 
 
+async def test_install_jobs_dedupe_only_per_port(db, client, admin_token, app, fake_remote):
+    """The install payload depends on the port, so different ports must not retire each other as twins."""
+    server = await add_server(client, admin_token, app)
+    url = f"/api/admin/servers/{server['id']}/containers"
+    first = await client.post(url, json={"container": AWG, "port": "443", "force": True}, headers=bearer(admin_token))
+    other_port = await client.post(url, json={"container": AWG, "port": "8443", "force": True},
+                                   headers=bearer(admin_token))
+    same_port = await client.post(url, json={"container": AWG, "port": "443", "force": True},
+                                  headers=bearer(admin_token))
+    padded_port = await client.post(url, json={"container": AWG, "port": "0443", "force": True},
+                                    headers=bearer(admin_token))
+    assert first.status_code == other_port.status_code == same_port.status_code == padded_port.status_code == 202
+    assert first.json()["job_id"] != other_port.json()["job_id"]
+    assert same_port.json()["job_id"] == first.json()["job_id"]
+    assert padded_port.json()["job_id"] == first.json()["job_id"]
+
+
 # --- I8: deleting a config keeps its traffic history ---------------------------------------------
 
 

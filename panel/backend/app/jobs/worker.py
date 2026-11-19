@@ -6,12 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import Job
 from app.domain.clock import Clock
-from datetime import timedelta
 
 from app.jobs.locks import ServerBusy, server_lock
 from app.jobs.queue import PermanentJobError, claim, fail, finish, postpone
-
-BUSY_RETRY = timedelta(seconds=10)
 
 log = logging.getLogger("panel.worker")
 
@@ -46,7 +43,7 @@ class Worker:
             except ServerBusy:
                 # Do not hold a worker slot while another job works on the same server.
                 await db.rollback()
-                await postpone(db, await db.get(Job, job_id), self._clock.now() + BUSY_RETRY)
+                await postpone(db, await db.get(Job, job_id), self._clock.now())
                 return
             except PermanentJobError as e:
                 await db.rollback()

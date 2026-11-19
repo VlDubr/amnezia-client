@@ -54,9 +54,11 @@ class ContainerIn(BaseModel):
     @field_validator("port")
     @classmethod
     def _port_in_range(cls, v: str | None) -> str | None:
-        if v is not None and not 1 <= int(v) <= 65535:
+        if v is None:
+            return None
+        if not 1 <= int(v) <= 65535:
             raise ValueError("port must be between 1 and 65535")
-        return v
+        return str(int(v))  # canonical form: "0443" and "443" are one port and one dedupe key
 
 
 def _iso(dt: datetime | None) -> str | None:
@@ -229,8 +231,9 @@ async def install(server_id: int, body: ContainerIn, admin: AdminDep, db: Db):
     if not body.force and await db.get(ServerContainer, (server_id, body.container)) is not None:
         raise ApiError(409, "already_installed", "the protocol is already installed; reinstalling breaks its configs")
     payload = {"container": body.container, "port": body.port} if body.port else {"container": body.container}
+    # The port is part of the payload, so installs with different ports must not dedupe into each other.
     job = await enqueue(db, "install_container", payload, server_id=server_id,
-                        dedupe_key=f"install:{server_id}:{body.container}")
+                        dedupe_key=f"install:{server_id}:{body.container}:{body.port}")
     audit(db, admin.actor, "container_install", f"server:{server_id}", container=body.container, force=body.force)
     await db.commit()
     return _accepted({"job_id": job.id})

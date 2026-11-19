@@ -3,8 +3,9 @@ from datetime import timedelta
 
 from sqlalchemy import select
 
+import app.jobs.queue as queue
 from app.db.models import Job, Server
-from app.jobs.queue import PermanentJobError, claim, enqueue, fail, finish, requeue_stale
+from app.jobs.queue import PermanentJobError, claim, enqueue, fail, finish, postpone, requeue_stale
 from app.jobs.worker import Worker
 from tests.conftest import bearer
 
@@ -73,6 +74,166 @@ async def test_requeue_stale_running_jobs(db, clock):
     await requeue_stale(db)
     await db.refresh(job)
     assert job.status == "queued"
+
+
+async def test_requeue_stale_retires_running_job_with_queued_twin(db, clock):
+    """Prod startup crash: requeueing a running job whose key is already queued violates the dedupe index."""
+    await enqueue(db, "reconcile", dedupe_key="sync:1")
+    await db.commit()
+    running = await claim(db, clock.now())
+    queued = await enqueue(db, "reconcile", dedupe_key="sync:1")
+    await db.commit()
+    await requeue_stale(db)
+    await db.refresh(running)
+    await db.refresh(queued)
+    assert running.status == "failed" and running.finished_at is not None
+    assert str(queued.id) in running.last_error
+    assert queued.status == "queued"
+
+
+async def test_requeue_stale_keeps_newest_of_running_twins(db, clock):
+    first = await enqueue(db, "reconcile", dedupe_key="sync:1")
+    await db.commit()
+    await claim(db, clock.now())
+    second = await enqueue(db, "reconcile", dedupe_key="sync:1")
+    await db.commit()
+    await claim(db, clock.now())
+    await requeue_stale(db)
+    await db.refresh(first)
+    await db.refresh(second)
+    assert second.status == "queued" and second.locked_at is None
+    assert first.status == "failed" and str(second.id) in first.last_error
+
+
+async def test_requeue_stale_requeues_jobs_without_dedupe_key(db, clock):
+    for _ in range(2):
+        await enqueue(db, "x")
+    await db.commit()
+    await claim(db, clock.now())
+    await claim(db, clock.now())
+    await requeue_stale(db)
+    assert (await db.execute(select(Job.status))).scalars().all() == ["queued", "queued"]
+
+
+async def test_fail_retires_job_with_queued_twin(db, clock):
+    server = await _server(db)
+    await enqueue(db, "reconcile", server_id=server.id, dedupe_key="sync:1")
+    await db.commit()
+    running = await claim(db, clock.now())
+    queued = await enqueue(db, "reconcile", server_id=server.id, dedupe_key="sync:1")
+    await db.commit()
+    await fail(db, running, "ssh down", clock.now())
+    await db.refresh(queued)
+    assert running.status == "failed" and running.attempts == 1 and "ssh down" in running.last_error
+    assert queued.status == "queued"
+    await db.refresh(server)
+    assert server.last_error == "ssh down"
+
+
+async def test_postpone_retires_job_with_queued_twin(db, clock):
+    await enqueue(db, "reconcile", dedupe_key="sync:1")
+    await db.commit()
+    running = await claim(db, clock.now())
+    queued = await enqueue(db, "reconcile", dedupe_key="sync:1")
+    await db.commit()
+    await postpone(db, running, clock.now())
+    await db.refresh(queued)
+    assert running.status == "failed" and running.attempts == 0 and str(queued.id) in running.last_error
+    assert queued.status == "queued"
+
+
+async def test_worker_failure_with_queued_twin_keeps_queue_consistent(sessionmaker, db, clock):
+    """The prod failure chain: a running job fails while a newer queued twin exists."""
+    server = await _server(db)
+
+    async def handler(session, job):
+        async with sessionmaker() as other:
+            await enqueue(other, "x", server_id=server.id, dedupe_key="sync:1")
+            await other.commit()
+        raise RuntimeError("ssh down")
+
+    job = await enqueue(db, "x", server_id=server.id, dedupe_key="sync:1")
+    await db.commit()
+    await Worker(sessionmaker, {"x": handler}, clock).run_once()
+    await db.refresh(job)
+    assert job.status == "failed" and "ssh down" in job.last_error
+    assert (await db.execute(select(Job.status).where(Job.id != job.id))).scalars().all() == ["queued"]
+
+
+def _blind_twin_check_once(monkeypatch, blind_calls: int):
+    """Simulates the race: the twin check ran before a concurrent enqueue committed its queued job."""
+    real_twin = queue._queued_twin
+    calls = []
+
+    async def stale_check(db_, key):
+        calls.append(key)
+        if len(calls) <= blind_calls:
+            return None
+        return await real_twin(db_, key)
+
+    monkeypatch.setattr(queue, "_queued_twin", stale_check)
+
+
+async def test_fail_recovers_when_queued_twin_appears_mid_transition(db, clock, monkeypatch):
+    server = await _server(db)
+    await enqueue(db, "reconcile", server_id=server.id, dedupe_key="sync:1")
+    await db.commit()
+    running = await claim(db, clock.now())
+    await enqueue(db, "reconcile", server_id=server.id, dedupe_key="sync:1")
+    await db.commit()
+    _blind_twin_check_once(monkeypatch, blind_calls=1)
+    await fail(db, running, "ssh down", clock.now())
+    assert running.status == "failed" and running.attempts == 1
+    assert "ssh down" in running.last_error and "superseded by queued job" in running.last_error
+    await db.refresh(server)
+    assert server.last_error == running.last_error
+
+
+async def test_postpone_recovers_when_queued_twin_appears_mid_transition(db, clock, monkeypatch):
+    await enqueue(db, "reconcile", dedupe_key="sync:1")
+    await db.commit()
+    running = await claim(db, clock.now())
+    queued = await enqueue(db, "reconcile", dedupe_key="sync:1")
+    await db.commit()
+    _blind_twin_check_once(monkeypatch, blind_calls=1)
+    await postpone(db, running, clock.now())
+    await db.refresh(queued)
+    assert running.status == "failed" and str(queued.id) in running.last_error
+    assert queued.status == "queued"
+
+
+async def test_requeue_stale_recovers_from_conflicting_requeue(db, clock, monkeypatch):
+    first = await enqueue(db, "reconcile", dedupe_key="sync:1")
+    await db.commit()
+    await claim(db, clock.now())
+    second = await enqueue(db, "reconcile", dedupe_key="sync:1")
+    await db.commit()
+    await claim(db, clock.now())
+    _blind_twin_check_once(monkeypatch, blind_calls=2)  # the whole first pass misses the twin it creates itself
+    await requeue_stale(db)
+    await db.refresh(first)
+    await db.refresh(second)
+    assert second.status == "queued"
+    assert first.status == "failed" and str(second.id) in first.last_error
+
+
+async def test_requeue_stale_recovers_from_autoflush_conflict(db, clock, monkeypatch):
+    """The pending flip of one job is flushed by the next job's twin SELECT, before the commit."""
+    other = await enqueue(db, "traffic", dedupe_key="traffic:2")
+    await db.commit()
+    await claim(db, clock.now())
+    stale = await enqueue(db, "reconcile", dedupe_key="sync:1")
+    await db.commit()
+    await claim(db, clock.now())
+    twin = await enqueue(db, "reconcile", dedupe_key="sync:1")
+    await db.commit()
+    _blind_twin_check_once(monkeypatch, blind_calls=1)  # stale (newest) is requeued blind, then other's check flushes it
+    await requeue_stale(db)
+    await db.refresh(stale)
+    await db.refresh(other)
+    await db.refresh(twin)
+    assert stale.status == "failed" and str(twin.id) in stale.last_error
+    assert other.status == "queued" and twin.status == "queued"
 
 
 async def test_worker_runs_handler_and_marks_done(sessionmaker, db, clock):
