@@ -13,6 +13,7 @@ from app.db.models import Config, Server, ServerContainer
 from app.domain.load import recommendations
 from app.domain.metrics import IFACE_RE
 from app.drivers.base import get_driver, installable_containers, supported_containers
+from app.drivers.xray import XrayRenderOptions
 from app.errors import ApiError
 from app.jobs.queue import enqueue
 from app.services import load_summary
@@ -221,6 +222,55 @@ async def accept_host_key(server_id: int, request: Request, admin: AdminDep, db:
     audit(db, admin.actor, "server_host_key_accept", f"server:{server_id}", host_key=server.host_key)
     await db.commit()
     return _accepted({"host_key": server.host_key, "job_id": job.id})
+
+
+async def _render_options_container(db: AsyncSession, server_id: int, container: str):
+    await _get(db, server_id)
+    if container not in supported_containers():
+        raise ApiError(422, "unsupported_container", f"supported: {', '.join(sorted(supported_containers()))}")
+    driver = get_driver(container)
+    if getattr(driver, "render_options_model", None) is None:
+        raise ApiError(422, "unsupported_container", "this protocol has no render options")
+    sc = await db.get(ServerContainer, (server_id, container))
+    if sc is None:
+        raise ApiError(404, "not_found", "the protocol is not installed on the server")
+    return driver, sc
+
+
+@router.get("/{server_id}/containers/{container}/render-options")
+async def get_render_options(server_id: int, container: str, _: AdminDep, db: Db) -> dict:
+    driver, sc = await _render_options_container(db, server_id, container)
+    options = sc.render_options_json or {}
+    return {"container": container, "options": options, "effective": driver.effective_render_options(options)}
+
+
+@router.patch("/{server_id}/containers/{container}/render-options")
+async def patch_render_options(server_id: int, container: str, body: XrayRenderOptions, admin: AdminDep,
+                               db: Db) -> dict:
+    """Merges overrides into the container's render options; an explicit null resets the key to its default.
+    The options apply to configs rendered afterwards (download or re-download), not to the server itself."""
+    driver, sc = await _render_options_container(db, server_id, container)
+    options = dict(sc.render_options_json or {})
+    for key, value in body.model_dump(exclude_unset=True).items():
+        if value is None:
+            options.pop(key, None)
+        elif key == "fragment":
+            fragment = dict(options.get("fragment", {}))
+            for sub, sub_value in value.items():
+                if sub_value is None:
+                    fragment.pop(sub, None)
+                else:
+                    fragment[sub] = sub_value
+            if fragment:
+                options["fragment"] = fragment
+            else:
+                options.pop("fragment", None)
+        else:
+            options[key] = value
+    sc.render_options_json = options
+    audit(db, admin.actor, "render_options_update", f"server:{server_id}", container=container, options=options)
+    await db.commit()
+    return {"container": container, "options": options, "effective": driver.effective_render_options(options)}
 
 
 @router.post("/{server_id}/containers", status_code=202)

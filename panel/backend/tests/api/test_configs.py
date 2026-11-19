@@ -277,6 +277,59 @@ async def test_xray_config_is_created_and_rendered_with_the_mobile_profile(db, c
     assert {f["kind"] for f in export["files"]} == {"xray_json", "mihomo_yaml", "invariants"}
 
 
+async def test_xray_render_options_api_and_export(db, client, admin_token, app, fake_remote, monkeypatch):
+    from app.db.models import AuditLog
+    from tests.fakes import remote_factory_for
+    from tests.unit.test_xray_driver import XRAY, xray_remote
+
+    monkeypatch.setattr("app.drivers.xray._same_ip", lambda *a: False)  # no real DNS in tests
+    remote = xray_remote()
+    remote.host = "203.0.113.10"
+    app.state.remote_factory = remote_factory_for(remote)
+    server = await add_server(client, admin_token, app)
+    sid = server["id"]
+    url = f"/api/admin/servers/{sid}/containers/{XRAY}/render-options"
+    hdr = bearer(admin_token)
+
+    body = (await client.get(url, headers=hdr)).json()
+    assert body["options"] == {} and body["effective"]["mobile_fingerprint"] == "firefox"
+
+    r = await client.patch(url, json={"mobile_fingerprint": "ios", "fragment": {"length": "50-100"}}, headers=hdr)
+    assert r.status_code == 200, r.text
+    assert r.json()["options"] == {"mobile_fingerprint": "ios", "fragment": {"length": "50-100"}}
+    assert r.json()["effective"]["fragment"] == {"length": "50-100", "interval": "10-20"}
+
+    # a later patch merges: the interval is added, the fingerprint and length stay
+    r = await client.patch(url, json={"fragment": {"interval": "5-10"}}, headers=hdr)
+    assert r.json()["options"] == {"mobile_fingerprint": "ios",
+                                   "fragment": {"length": "50-100", "interval": "5-10"}}
+
+    # the export is rendered with the options
+    _, token = await registered_user(db, client)
+    cfg = (await client.post("/api/me/configs", json={"server_id": sid, "container": XRAY, "name": "Phone"},
+                             headers=bearer(token))).json()
+    export = (await client.get(f"/api/me/configs/{cfg['id']}", headers=bearer(token))).json()["export"]
+    client_json = json.loads(decode_vpn_key(export["vpn_key"])["containers"][0]["xray"]["last_config"])
+    assert client_json["outbounds"][0]["streamSettings"]["realitySettings"]["fingerprint"] == "ios"
+    assert client_json["outbounds"][1]["settings"]["fragment"]["length"] == "50-100"
+
+    # explicit nulls reset to the defaults
+    r = await client.patch(url, json={"mobile_fingerprint": None, "fragment": None}, headers=hdr)
+    assert r.json()["options"] == {} and r.json()["effective"]["mobile_fingerprint"] == "firefox"
+
+    for bad in ({"mobile_fingerprint": "chrome"}, {"fragment": {"length": "200-100"}}, {"spider_x": "blog"},
+                {"fragment": {"length": "１００-２００"}}, {"fragmnt": {}}, {"fragment": {"lenght": "50-100"}}):
+        assert (await client.patch(url, json=bad, headers=hdr)).status_code == 422
+
+    # other protocols have no render options; an unknown server is 404
+    r = await client.get(f"/api/admin/servers/{sid}/containers/amnezia-awg2/render-options", headers=hdr)
+    assert r.status_code == 422 and r.json()["code"] == "unsupported_container"
+    assert (await client.get(f"/api/admin/servers/9999/containers/{XRAY}/render-options",
+                             headers=hdr)).status_code == 404
+    events = (await db.execute(select(AuditLog).where(AuditLog.action == "render_options_update"))).scalars().all()
+    assert len(events) == 3
+
+
 async def test_render_refusal_is_a_clear_error(db, client, admin_token, app, fake_remote, monkeypatch):
     from app.drivers.base import get_driver
 

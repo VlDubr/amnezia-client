@@ -53,6 +53,23 @@ Every download ships an invariant report: the core version (expected `26.7.28`, 
 
 After any save or reinstall in the AmneziaVPN UI, wait for the next panel sync, then re-download and re-import the configs on all devices.
 
+#### Tuning the profiles
+
+The admin can override the render parameters per server container without touching the server:
+
+```bash
+curl -X PATCH https://panel.example/api/admin/servers/1/containers/amnezia-xray/render-options \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"mobile_fingerprint": "ios", "fragment": {"length": "50-100"}}'
+```
+
+- `mobile_fingerprint` — REALITY fingerprint of the mobile profile: `firefox` (default) or `ios`;
+- `fragment.length` / `fragment.interval` — `from-to` ranges (defaults `100-200` / `10-20`; a common fallback is `50-100`); `packets` stays `tlshello`;
+- `mihomo_fingerprint` — `chrome` (default), `firefox`, `safari`, `ios`, `android`, `edge` or `random`;
+- `spider_x` — the REALITY spider path, default `""`.
+
+PATCH merges the given keys; an explicit `null` resets a key to its default. GET on the same path returns the stored overrides and the effective values. The options live in the panel database (`server_containers.render_options_json`), are never written to `server.json` and survive syncs. They apply to configs rendered afterwards: re-download and re-import them on the devices. The invariant report lists the active overrides.
+
 ## Install
 
 You need a Linux VPS with Docker and the compose plugin. With a DNS name that points to it, the panel gets a free public certificate; without one, see [Without a domain](#without-a-domain-self-signed-certificate).

@@ -186,7 +186,7 @@ class OpenVpnDriver:
         return counters
 
     def render(self, material: ClientMaterial, params: dict[str, Any], host: str, dns: tuple[str, str],
-               description: str) -> Rendered:
+               description: str, options: dict[str, Any] | None = None) -> Rendered:
         variables = {
             "OPENVPN_TRANSPORT_PROTO": params["proto"], "OPENVPN_NCP_DISABLE": "ncp-disable" if params["ncp_disable"]
             else "", "OPENVPN_CIPHER": params["cipher"], "OPENVPN_HASH": params["auth"],

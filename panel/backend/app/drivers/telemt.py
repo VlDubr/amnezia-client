@@ -123,7 +123,7 @@ class TelemtDriver:
         return {}  # Telemt exposes no per-user byte counters the panel can rely on
 
     def render(self, material: ClientMaterial, params: dict[str, Any], host: str, dns: tuple[str, str],
-               description: str) -> Rendered:
+               description: str, options: dict[str, Any] | None = None) -> Rendered:
         secret = material.data["secret"]
         full = f"ee{secret}{params['tls_domain'].encode().hex()}" if params["tls"] else f"dd{secret}"
         server = params["public_host"] or host

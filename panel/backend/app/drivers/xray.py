@@ -18,13 +18,15 @@ import json
 import re
 import socket
 import threading
+import unicodedata
 import urllib.parse
 import uuid
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.domain.filenames import download_filename
 from app.drivers.base import ApplyResult, ClientInfo, ClientMaterial, Counter, ExtraFile, Rendered, register
@@ -42,7 +44,12 @@ EXPECTED_CORE_VERSION = "26.7.28"
 FRAGMENT_TAG = "frag"
 # chrome without fragmentation does not work on mobile networks; ios is the fallback if firefox fails.
 MOBILE_FINGERPRINT = "firefox"
-FRAGMENT_SETTINGS = {"packets": "tlshello", "length": "100-200", "interval": "10-20"}
+DEFAULT_RENDER_OPTIONS: dict[str, Any] = {
+    "mobile_fingerprint": MOBILE_FINGERPRINT,
+    "fragment": {"length": "100-200", "interval": "10-20"},  # packets stays tlshello
+    "mihomo_fingerprint": "chrome",
+    "spider_x": "",
+}
 # Xray reads uuid hex case-insensitively; imported clients may carry uppercase ids.
 UUID_RE = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 PUBLIC_KEY_RE = re.compile(r"[A-Za-z0-9_-]{43}")  # x25519 public key: base64url without padding
@@ -53,6 +60,43 @@ DEST_LOOP_TIMEOUT_S = 5
 _DNS_SLOTS = threading.Semaphore(2)
 # mihomo built-in outbounds and our own group name: a proxy must not be called any of these.
 MIHOMO_RESERVED_NAMES = {"DIRECT", "REJECT", "REJECT-DROP", "PASS", "COMPATIBLE", "GLOBAL", "PROXY"}
+
+
+class FragmentOptions(BaseModel):
+    model_config = ConfigDict(extra="forbid")  # a typo must fail loudly, not look like a successful patch
+
+    # [0-9], not \d: Xray parses ASCII digits only, \d would also accept e.g. fullwidth Unicode digits.
+    length: str | None = Field(default=None, pattern=r"^[0-9]{1,5}-[0-9]{1,5}$")
+    interval: str | None = Field(default=None, pattern=r"^[0-9]{1,5}-[0-9]{1,5}$")
+
+    @field_validator("length", "interval")
+    @classmethod
+    def _ordered_range(cls, v: str | None, info) -> str | None:
+        if v is None:
+            return None
+        lo, hi = (int(part) for part in v.split("-"))
+        if lo > hi or hi > 65535 or (info.field_name == "length" and lo < 1):
+            raise ValueError("range must be 'from-to' with from <= to <= 65535 (length starts at 1)")
+        return v
+
+
+class XrayRenderOptions(BaseModel):
+    """Admin overrides for rendering client configs; an explicit null resets the key to its default."""
+    model_config = ConfigDict(extra="forbid")
+
+    mobile_fingerprint: Literal["firefox", "ios"] | None = None
+    fragment: FragmentOptions | None = None
+    mihomo_fingerprint: Literal["chrome", "firefox", "safari", "ios", "android", "edge", "random"] | None = None
+    spider_x: str | None = Field(default=None, max_length=256)
+
+    @field_validator("spider_x")
+    @classmethod
+    def _spider_path(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        if not v.startswith("/") or any(unicodedata.category(c) == "Cc" for c in v):
+            raise ValueError("spider_x must be a path starting with '/' and without control characters")
+        return v
 
 
 def _prepare(conf: dict[str, Any]) -> None:
@@ -219,19 +263,28 @@ def _invariants(params: dict[str, Any], host: str) -> list[dict[str, str]]:
 
 
 def _report_text(checks: list[dict[str, str]], params: dict[str, Any], host: str, description: str,
-                 json_name: str, yaml_name: str, link_name: str, mobile: bool) -> str:
+                 json_name: str, yaml_name: str, link_name: str, mobile: bool,
+                 options: dict[str, Any] | None, opts: dict[str, Any]) -> str:
     lines = [f"Xray config report: {description}",
              f"Server: {host}:{params['port']} (container amnezia-xray)",
-             "Source: live /opt/amnezia/xray/server.json, refreshed by the panel sync",
-             "", "Invariants:"]
+             "Source: live /opt/amnezia/xray/server.json, refreshed by the panel sync"]
+    if options:
+        lines.append(f"Render options (admin overrides): {json.dumps(options, sort_keys=True)}")
+    lines += ["", "Invariants:"]
     lines += [f"  [{c['status'].upper():4}] {c['text']}" for c in checks]
     lines += ["", "Profiles:"]
     if mobile:
+        fp = opts["mobile_fingerprint"]
+        length, interval = opts["fragment"]["length"], opts["fragment"]["interval"]
+        alt_fp = "ios" if fp == "firefox" else "firefox"
+        alt_length = "50-100" if length == "100-200" else "100-200"
         lines += [
-            f"  {json_name} - Amnezia mobile (Xray JSON): vless first, REALITY fingerprint firefox,",
-            '      tlshello fragment 100-200/10-20 through the freedom outbound "frag" (sockopt.dialerProxy).',
-            '      Import this file on the phone. If it still fails: fingerprint "ios" or fragment length "50-100".',
-            f"  {yaml_name} - Clash Verge / mihomo: chrome fingerprint, no fragmentation (mihomo cannot tlshello).",
+            f"  {json_name} - Amnezia mobile (Xray JSON): vless first, REALITY fingerprint {fp},",
+            f'      tlshello fragment {length}/{interval} through the freedom outbound "frag" (sockopt.dialerProxy).',
+            (f'      Import this file on the phone. If it still fails: fingerprint "{alt_fp}"'
+             f' or fragment length "{alt_length}".'),
+            (f"  {yaml_name} - Clash Verge / mihomo: {opts['mihomo_fingerprint']} fingerprint,"
+             " no fragmentation (mihomo cannot tlshello)."),
         ]
     else:
         lines.append(f"  {json_name} - Xray client JSON for this server's transport (no mobile fragment profile).")
@@ -252,6 +305,18 @@ class XrayDriver:
     traffic_counters = True
     script_folder = "xray"
     default_port = "443"
+    render_options_model = XrayRenderOptions
+
+    @staticmethod
+    def effective_render_options(options: dict[str, Any] | None) -> dict[str, Any]:
+        """Defaults merged with the admin's stored overrides (only the overridden keys are stored)."""
+        opts = copy.deepcopy(DEFAULT_RENDER_OPTIONS)
+        for key, value in (options or {}).items():
+            if key == "fragment":
+                opts["fragment"].update(value or {})
+            elif value is not None:
+                opts[key] = value
+        return opts
 
     def install_vars(self, port: str | None) -> dict[str, str]:
         return {"XRAY_SERVER_PORT": port or self.default_port}
@@ -476,7 +541,8 @@ class XrayDriver:
             return flows.get(_id_hash(material.client_id), "")
         return material.data.get("flow", "")  # params cached before client_flows existed
 
-    def _mobile_client(self, client_id: str, flow: str, params: dict[str, Any], host: str) -> dict[str, Any]:
+    def _mobile_client(self, client_id: str, flow: str, params: dict[str, Any], host: str,
+                       opts: dict[str, Any]) -> dict[str, Any]:
         """Profile A: the mobile Amnezia Xray JSON, exactly the working shape and nothing else (no dns/routing/
         mux/sniffing). vless comes first, the fragment outbound is reached through sockopt.dialerProxy."""
         reality = params["stream"]["realitySettings"]
@@ -495,11 +561,12 @@ class XrayDriver:
                      "network": "tcp",
                      "security": "reality",
                      "tcpSettings": {"header": {"type": "none"}},
-                     "realitySettings": {"fingerprint": MOBILE_FINGERPRINT, "serverName": names[0],
+                     "realitySettings": {"fingerprint": opts["mobile_fingerprint"], "serverName": names[0],
                                          "publicKey": params["public_key"], "shortId": params["short_id"],
-                                         "spiderX": ""},
+                                         "spiderX": opts["spider_x"]},
                      "sockopt": {"dialerProxy": FRAGMENT_TAG}}},
-                {"tag": FRAGMENT_TAG, "protocol": "freedom", "settings": {"fragment": dict(FRAGMENT_SETTINGS)}},
+                {"tag": FRAGMENT_TAG, "protocol": "freedom",
+                 "settings": {"fragment": {"packets": "tlshello", **opts["fragment"]}}},
             ],
         }
 
@@ -519,7 +586,8 @@ class XrayDriver:
             }],
         }
 
-    def _mihomo_config(self, client_id: str, flow: str, params: dict[str, Any], host: str, name: str) -> str:
+    def _mihomo_config(self, client_id: str, flow: str, params: dict[str, Any], host: str, name: str,
+                       opts: dict[str, Any]) -> str:
         """Profile B: an importable Clash Verge / mihomo config. No fragmentation (mihomo cannot tlshello),
         no alpn/h2 and no xhttp next to tcp+vision."""
         reality = params["stream"]["realitySettings"]
@@ -530,7 +598,7 @@ class XrayDriver:
                                  "uuid": client_id, "network": "tcp", "udp": True, "tls": True}
         if flow:
             proxy["flow"] = flow
-        proxy.update({"servername": names[0], "client-fingerprint": "chrome",
+        proxy.update({"servername": names[0], "client-fingerprint": opts["mihomo_fingerprint"],
                       "reality-opts": {"public-key": params["public_key"], "short-id": params["short_id"],
                                        "support-x25519mlkem768": False}})
         doc = {"mixed-port": 7890, "allow-lan": False, "mode": "rule", "log-level": "info",
@@ -559,20 +627,21 @@ class XrayDriver:
                 raise ValueError("profile B: xhttp/alpn fields are forbidden next to tcp+vision")
 
     def render(self, material: ClientMaterial, params: dict[str, Any], host: str, dns: tuple[str, str],
-               description: str) -> Rendered:
+               description: str, options: dict[str, Any] | None = None) -> Rendered:
         self._validate(material, params)
         checks = _invariants(params, host)
         failed = [c["text"] for c in checks if c["status"] == "fail"]
         if failed:
             raise ValueError("Xray server invariants failed: " + "; ".join(failed))
+        opts = self.effective_render_options(options)
         client_id = material.client_id
         stream = params.get("stream", {})
         network = stream.get("network", "tcp")
         mobile = network == "tcp" and stream.get("security") == "reality"
         flow = "" if network == "xhttp" else self._live_flow(material, params)
-        client = (self._mobile_client(client_id, flow, params, host) if mobile
+        client = (self._mobile_client(client_id, flow, params, host, opts) if mobile
                   else self._plain_client(client_id, flow, params, host))
-        mihomo = self._mihomo_config(client_id, flow, params, host, description) if mobile else None
+        mihomo = self._mihomo_config(client_id, flow, params, host, description, opts) if mobile else None
         self._validate_artifacts(client, mihomo, mobile)
         doc = {
             "containers": [{"container": self.container, "xray": {
@@ -595,7 +664,7 @@ class XrayDriver:
         link_name = download_filename(description, "txt")
         files.append(ExtraFile("invariants", download_filename(f"{description} invariants", "txt"),
                                _report_text(checks, params, host, description, json_name, yaml_name, link_name,
-                                            mobile)))
+                                            mobile, options, opts)))
         return Rendered(encode_vpn_key(doc), self._vless_link(client_id, flow, params, host, description),
                         link_name, files)
 

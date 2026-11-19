@@ -162,7 +162,7 @@ class Socks5Driver:
         return {user: Counter(t[0], t[1], None) for user, t in totals.items()}
 
     def render(self, material: ClientMaterial, params: dict[str, Any], host: str, dns: tuple[str, str],
-               description: str) -> Rendered:
+               description: str, options: dict[str, Any] | None = None) -> Rendered:
         q = urllib.parse.quote
         endpoint = f"[{host}]" if ":" in host and not host.startswith("[") else host
         link = f"socks5://{q(material.data['login'], safe='')}:{q(material.data['secret'], safe='')}@" \

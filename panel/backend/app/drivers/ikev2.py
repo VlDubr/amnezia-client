@@ -128,7 +128,7 @@ class Ikev2Driver:
         return {}  # libreswan traffic is per SA, not per certificate name in a stable form
 
     def render(self, material: ClientMaterial, params: dict[str, Any], host: str, dns: tuple[str, str],
-               description: str) -> Rendered:
+               description: str, options: dict[str, Any] | None = None) -> Rendered:
         p12 = material.data["private_key"]
         client = {"hostName": host, "userName": material.client_id, "cert": p12, "password": ""}
         doc = {

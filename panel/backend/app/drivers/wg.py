@@ -201,7 +201,7 @@ class WgFamilyDriver:
         return "25-35" if self.is_awg and params.get("protocol_version") == "3.1" else "25"
 
     def render(self, material: ClientMaterial, params: dict[str, Any], host: str, dns: tuple[str, str],
-               description: str) -> Rendered:
+               description: str, options: dict[str, Any] | None = None) -> Rendered:
         d = material.data
         awg = params.get("awg", {}) if self.is_awg else {}
         variables = {

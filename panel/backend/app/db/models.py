@@ -102,6 +102,9 @@ class ServerContainer(Base):
     server_id: Mapped[int] = mapped_column(ForeignKey("servers.id", ondelete="CASCADE"), primary_key=True)
     container: Mapped[str] = mapped_column(String(64), primary_key=True)
     params_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    # Admin overrides for rendering client configs (sparse: only overridden keys). Kept apart from
+    # params_json, which every sync replaces with the live server state.
+    render_options_json: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     refreshed_at: Mapped[datetime] = _created()
     traffic_read_at: Mapped[datetime | None] = mapped_column(TS)  # last successful read of its traffic counters
 

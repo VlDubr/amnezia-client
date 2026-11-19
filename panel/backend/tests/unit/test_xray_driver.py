@@ -468,6 +468,71 @@ async def test_legacy_cached_params_still_render():
     assert "core version unknown" in report and "[FAIL]" not in report
 
 
+async def test_render_options_override_the_profiles_and_ship_in_the_report():
+    remote = xray_remote()
+    driver = get_driver(XRAY)
+    params = await driver.read_params(remote)
+    options = {"mobile_fingerprint": "ios", "fragment": {"length": "50-100", "interval": "5-10"},
+               "mihomo_fingerprint": "firefox", "spider_x": "/blog"}
+    out = driver.render(ClientMaterial(UUID_A, {"secret": UUID_A}), params, "h", ("", ""), "x", options)
+    vless, frag = rendered_client(out)["outbounds"]
+    assert vless["streamSettings"]["realitySettings"]["fingerprint"] == "ios"
+    assert vless["streamSettings"]["realitySettings"]["spiderX"] == "/blog"
+    assert frag["settings"]["fragment"] == {"packets": "tlshello", "length": "50-100", "interval": "5-10"}
+    doc = yaml.safe_load(next(f.content for f in out.extra_files if f.kind == "mihomo_yaml"))
+    assert doc["proxies"][0]["client-fingerprint"] == "firefox"
+    report = report_of(out)
+    assert "Render options (admin overrides)" in report
+    # the profile descriptions reflect the effective values, not the defaults
+    assert "REALITY fingerprint ios" in report and "tlshello fragment 50-100/5-10" in report
+    assert "mihomo: firefox fingerprint" in report
+    assert "fingerprint firefox," not in report and "100-200/10-20" not in report
+
+
+async def test_render_options_partial_override_keeps_the_other_defaults():
+    remote = xray_remote()
+    driver = get_driver(XRAY)
+    params = await driver.read_params(remote)
+    out = driver.render(ClientMaterial(UUID_A, {"secret": UUID_A}), params, "h", ("", ""), "x",
+                        {"fragment": {"length": "50-100"}})
+    vless, frag = rendered_client(out)["outbounds"]
+    assert vless["streamSettings"]["realitySettings"]["fingerprint"] == "firefox"
+    assert frag["settings"]["fragment"] == {"packets": "tlshello", "length": "50-100", "interval": "10-20"}
+    doc = yaml.safe_load(next(f.content for f in out.extra_files if f.kind == "mihomo_yaml"))
+    assert doc["proxies"][0]["client-fingerprint"] == "chrome"
+    assert "Render options (admin overrides)" in report_of(out)
+
+
+def test_effective_render_options_merges_sparse_overrides():
+    from app.drivers.xray import DEFAULT_RENDER_OPTIONS
+
+    driver = get_driver(XRAY)
+    assert driver.effective_render_options(None) == DEFAULT_RENDER_OPTIONS
+    assert driver.effective_render_options({}) == DEFAULT_RENDER_OPTIONS
+    eff = driver.effective_render_options({"mobile_fingerprint": "ios", "fragment": {"length": "50-100"}})
+    assert eff["mobile_fingerprint"] == "ios"
+    assert eff["fragment"] == {"length": "50-100", "interval": "10-20"}
+    assert eff["mihomo_fingerprint"] == "chrome" and eff["spider_x"] == ""
+    assert DEFAULT_RENDER_OPTIONS["fragment"] == {"length": "100-200", "interval": "10-20"}  # not mutated
+
+
+def test_render_options_model_validation():
+    from pydantic import ValidationError
+
+    from app.drivers.xray import XrayRenderOptions
+
+    XrayRenderOptions.model_validate({"mobile_fingerprint": "ios", "spider_x": "/",
+                                      "fragment": {"length": "50-100", "interval": "0-0"}})
+    for bad in ({"mobile_fingerprint": "chrome"}, {"mihomo_fingerprint": "netscape"},
+                {"fragment": {"length": "200-100"}}, {"fragment": {"length": "0-10"}},
+                {"fragment": {"interval": "10-70000"}}, {"fragment": {"length": "50"}},
+                {"fragment": {"length": "１００-２００"}},  # fullwidth Unicode digits: Xray cannot parse them
+                {"fragment": {"lenght": "50-100"}}, {"fragmnt": {"length": "50-100"}},  # typos must fail
+                {"spider_x": "blog"}, {"spider_x": "/a\nb"}, {"spider_x": "/a\u0085b"}):  # C0 and C1 controls
+        with pytest.raises(ValidationError):
+            XrayRenderOptions.model_validate(bad)
+
+
 async def test_before_start_writes_initial_reality_config():
     remote = FakeRemote([XRAY])
     remote.files[(XRAY, "/opt/amnezia/xray/xray_uuid.key")] = UUID_A + "\n"

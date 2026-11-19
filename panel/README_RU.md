@@ -56,6 +56,23 @@ OpenVPN over Cloak, OpenVPN over ShadowSocks и ShadowSocks over Xray не по�
 
 После любого сохранения или переустановки в UI AmneziaVPN дождитесь ближайшей синхронизации панели, затем заново скачайте и переимпортируйте конфиги на всех устройствах.
 
+#### Настройка профилей
+
+Администратор может переопределить параметры рендера для контейнера сервера, не трогая сам сервер:
+
+```bash
+curl -X PATCH https://panel.example/api/admin/servers/1/containers/amnezia-xray/render-options \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"mobile_fingerprint": "ios", "fragment": {"length": "50-100"}}'
+```
+
+- `mobile_fingerprint` — REALITY fingerprint мобильного профиля: `firefox` (по умолчанию) или `ios`;
+- `fragment.length` / `fragment.interval` — диапазоны `от-до` (по умолчанию `100-200` / `10-20`; частый запасной вариант — `50-100`); `packets` остаётся `tlshello`;
+- `mihomo_fingerprint` — `chrome` (по умолчанию), `firefox`, `safari`, `ios`, `android`, `edge` или `random`;
+- `spider_x` — spider-путь REALITY, по умолчанию `""`.
+
+PATCH сливает переданные ключи с сохранёнными; явный `null` сбрасывает ключ к значению по умолчанию. GET по тому же пути возвращает сохранённые переопределения и итоговые значения. Опции хранятся в базе панели (`server_containers.render_options_json`), никогда не записываются в `server.json` и переживают синхронизации. Они применяются к конфигам, отрендеренным после изменения: скачайте и переимпортируйте их на устройствах. Отчёт инвариантов показывает действующие переопределения.
+
 ## Установка
 
 Нужен Linux VPS с Docker и плагином compose. Если есть DNS-имя, указывающее на VPS, панель получит бесплатный публичный сертификат; без домена см. раздел [«Без домена»](#без-домена-самоподписанный-сертификат).

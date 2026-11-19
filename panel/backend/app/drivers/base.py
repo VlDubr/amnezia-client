@@ -83,7 +83,10 @@ class Driver(Protocol):
     async def read_traffic(self, remote: Remote) -> dict[str, Counter]: ...
 
     def render(self, material: ClientMaterial, params: dict[str, Any], host: str, dns: tuple[str, str],
-               description: str) -> Rendered: ...
+               description: str, options: dict[str, Any] | None = None) -> Rendered:
+        """`options` are the admin's per-container render overrides (ServerContainer.render_options_json);
+        only protocols that declare render_options_model use them."""
+        ...
 
     def reserved(self, material: ClientMaterial) -> str | None:
         """The resource this client occupies (see create_material's `taken`)."""
