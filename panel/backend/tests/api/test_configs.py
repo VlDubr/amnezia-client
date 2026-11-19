@@ -250,6 +250,48 @@ async def test_export_lists_the_extra_files(db, client, admin_token, app, fake_r
     assert export["files"] == [{"kind": "xray_json", "filename": "Phone.json", "content": "{}\n"}]
 
 
+async def test_xray_config_is_created_and_rendered_with_the_mobile_profile(db, client, admin_token, app,
+                                                                          fake_remote, monkeypatch):
+    from tests.fakes import remote_factory_for
+    from tests.unit.test_xray_driver import CONF, XRAY, xray_remote
+
+    monkeypatch.setattr("app.drivers.xray._same_ip", lambda *a: False)  # no real DNS in tests
+    remote = xray_remote()
+    remote.host = "203.0.113.10"
+    app.state.remote_factory = remote_factory_for(remote)  # fake_remote already stubbed the host key fetch
+    server = await add_server(client, admin_token, app)
+    _, token = await registered_user(db, client)
+    r = await client.post("/api/me/configs", json={"server_id": server["id"], "container": XRAY, "name": "Phone"},
+                          headers=bearer(token))
+    assert r.status_code == 201, r.text
+    cfg = r.json()
+    clients = json.loads(remote.files[(XRAY, CONF)])["inbounds"][0]["settings"]["clients"]
+    assert cfg["client_id"] in [c["id"] for c in clients]
+
+    export = (await client.get(f"/api/me/configs/{cfg['id']}", headers=bearer(token))).json()["export"]
+    client_json = json.loads(decode_vpn_key(export["vpn_key"])["containers"][0]["xray"]["last_config"])
+    stream = client_json["outbounds"][0]["streamSettings"]
+    assert stream["realitySettings"]["fingerprint"] == "firefox"
+    assert stream["sockopt"] == {"dialerProxy": "frag"}
+    assert client_json["outbounds"][1]["tag"] == "frag"
+    assert {f["kind"] for f in export["files"]} == {"xray_json", "mihomo_yaml", "invariants"}
+
+
+async def test_render_refusal_is_a_clear_error(db, client, admin_token, app, fake_remote, monkeypatch):
+    from app.drivers.base import get_driver
+
+    server, _, token = await _setup(db, client, admin_token, app)
+    cfg = (await _create(client, token, server["id"])).json()
+
+    def refuse(*a, **k):
+        raise ValueError("Xray server invariants failed: dest loop")
+
+    monkeypatch.setattr(get_driver(AWG), "render", refuse)
+    r = await client.get(f"/api/me/configs/{cfg['id']}", headers=bearer(token))
+    assert r.status_code == 422 and r.json()["code"] == "render_failed"
+    assert "dest loop" in r.json()["message"]
+
+
 async def test_full_server_gets_a_clear_error(db, client, admin_token, app, fake_remote, monkeypatch):
     from app.drivers.base import get_driver
 

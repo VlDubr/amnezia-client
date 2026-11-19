@@ -80,6 +80,7 @@ async def test_xray_lifecycle(sshhost):
             assert material.client_id in await driver.list_clients(remote)
             assert existing <= set(await driver.list_clients(remote))  # the install's own client is kept
 
+            params = await driver.read_params(remote)  # the rendered uuid must be in the live clients[]
             rendered = driver.render(material, params, ip_of(XRAY), ("1.1.1.1", "1.0.0.1"), "it")
             client_json = json.loads(decode_vpn_key(rendered.vpn_key)["containers"][0]["xray"]["last_config"])
             client = start_client(json.dumps(client_json))

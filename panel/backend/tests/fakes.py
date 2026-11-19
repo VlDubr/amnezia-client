@@ -12,6 +12,7 @@ class FakeRemote:
         self.files: dict[tuple[str, str], str] = {}
         self.commands: list[tuple[str, str]] = []
         self.containers = containers or []
+        self.host: str | None = None  # the server address, as Remote.host
         self.dumps: dict[str, str] = {}  # container -> `wg show <iface> dump` output
         self.outputs: dict[str, str] = {}  # command substring -> stdout for container_exec
         self.fail_with: str | None = None

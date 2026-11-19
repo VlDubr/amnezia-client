@@ -48,8 +48,9 @@ async def fetch_host_key(host: str, port: int) -> str:
 
 
 class Remote:
-    def __init__(self, conn: asyncssh.SSHClientConnection):
+    def __init__(self, conn: asyncssh.SSHClientConnection, host: str | None = None):
         self._conn = conn
+        self.host = host  # the server address as the panel knows it; drivers use it for self-reference checks
 
     async def run(self, cmd: str, input: str | None = None, check: bool = True, timeout: float = 120) -> RunResult:
         try:
@@ -107,7 +108,7 @@ async def open_remote(target: SshTarget) -> AsyncIterator[Remote]:
     except (OSError, asyncssh.Error, TimeoutError) as e:
         raise RemoteError(f"cannot connect to {target.host}:{target.port}: {e}") from e
     try:
-        yield Remote(conn)
+        yield Remote(conn, target.host)
     finally:
         conn.close()
         await conn.wait_closed()

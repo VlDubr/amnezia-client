@@ -16,6 +16,7 @@ dependencies = [
     "zxcvbn>=4.4.28",
     "cryptography>=43",
     "segno>=1.6",
+    "pyyaml>=6",
 ]
 
 [project.scripts]

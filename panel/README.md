@@ -16,7 +16,7 @@ What users can do:
 
 - Register with the invite key.
 - Create, block, delete and re-download their configs in a web cabinet.
-  A config is named when it is created. The connection in the AmneziaVPN app and the downloaded file get that name (the file name transliterated to Latin, e.g. `Moy_telefon.conf`). An Xray config also downloads as the client JSON file that AmneziaVPN exports as "XRay native format" (`Moy_telefon.json`).
+  A config is named when it is created. The connection in the AmneziaVPN app and the downloaded file get that name (the file name transliterated to Latin, e.g. `Moy_telefon.conf`). An Xray config also downloads as the client JSON (`Moy_telefon.json`), a Clash Verge / mihomo YAML (`Moy_telefon.yaml`) and an invariant report (`Moy_telefon_invariants.txt`); see [Xray client configs](#xray-client-configs).
 
 The panel runs on its own VPS. It manages VPN servers over SSH with the same scripts the AmneziaVPN desktop client uses (`client/server_scripts`), so it works with servers that were set up by the app.
 
@@ -28,7 +28,7 @@ The design is in `docs/superpowers/specs/2026-09-26-amnezia-panel-design.md`.
 |---|---|---|---|---|
 | AmneziaWG (`amnezia-awg2`, legacy `amnezia-awg`) | yes (awg2) | peer removed / re-added | yes | `vpn://` key, `.conf`, QR |
 | WireGuard (`amnezia-wireguard`) | yes | peer removed / re-added | yes | `vpn://` key, `.conf`, QR |
-| XRay VLESS (`amnezia-xray`) | yes (REALITY) | client removed / re-added, Xray restarts | yes (stats API) | `vpn://` key, `vless://` link, QR |
+| XRay VLESS (`amnezia-xray`) | yes (REALITY) | client removed / re-added, Xray restarts | yes (stats API) | `vpn://` key, `vless://` link, QR, client JSON, mihomo YAML, invariant report |
 | OpenVPN (`amnezia-openvpn`) | yes | `ccd` disable / enable; delete revokes into the CRL | yes (per session) | `vpn://` key, `.ovpn`, QR |
 | SOCKS5 (`amnezia-socks5proxy`) | yes (auth always on) | user line removed / re-added | yes (from the 3proxy log) | `socks5://` link, QR |
 | Telemt (`amnezia-telemt`) | yes | user removed / re-added | not available | `tg://proxy` link, QR |
@@ -40,6 +40,18 @@ Changing the client list of Xray, SOCKS5, Telemt and MTProxy restarts that conta
 OpenVPN over Cloak or ShadowSocks and ShadowSocks over Xray are not supported: the current AmneziaVPN sources no longer contain server scripts for them.
 
 Imported clients (created outside the panel) can be issued again only when the server holds everything the client needs: Xray, SOCKS5, Telemt and MTProxy clients can be; WireGuard, AmneziaWG, OpenVPN and IKEv2 clients cannot, because their private keys stayed on the client device.
+
+### Xray client configs
+
+Xray configs are rendered only from the live `/opt/amnezia/xray/server.json`, which the panel re-reads on every sync (at least every 15 minutes). The uuid, port, flow, serverName and shortId come from that file; the publicKey is derived from its private key locally in the panel (X25519, the same math as `xray x25519`). The private key is never sent back to the server, never stored in the panel database and never appears in a config, link or report. For a tcp+REALITY server three profiles are issued:
+
+- **Amnezia mobile (Xray JSON)** — the vless outbound first, REALITY fingerprint `firefox`, a `tlshello` fragment `100-200`/`10-20` through the freedom outbound `frag` (`sockopt.dialerProxy`). Import this file on the phone. If it still fails on a mobile network, try fingerprint `ios` or fragment length `50-100`.
+- **Clash Verge / mihomo (YAML)** — an importable config with the `chrome` fingerprint, no fragmentation (mihomo cannot `tlshello`) and `support-x25519mlkem768: false`.
+- **`vless://` link** — it cannot carry the fragment or `dialerProxy`, so it only fits clients without fragmentation (Clash/desktop). For a phone use the JSON file.
+
+Every download ships an invariant report: the core version (expected `26.7.28`, which Amnezia mobile is pinned to), REALITY `minClientVer` / `maxClientVer` / `maxTimeDiff`, `dest`, `serverNames` / `shortIds` and the client flows. Warnings ship with the config; a failed invariant (a `dest` pointing back at the server itself, empty `serverNames` or `shortIds`) blocks the download with a clear error until the server is fixed. The generator only reads `server.json`; fixing an invariant is a separate operator operation (backup, `xray run -test`, restart).
+
+After any save or reinstall in the AmneziaVPN UI, wait for the next panel sync, then re-download and re-import the configs on all devices.
 
 ## Install
 

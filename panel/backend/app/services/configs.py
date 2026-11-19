@@ -104,6 +104,9 @@ async def create_config(db: AsyncSession, state: Any, user_id: int, server_id: i
                             await driver.apply(remote, desired, known | {material.client_id},
                                                revoked={material.client_id})
                         raise
+                    # Read again so the stored params reflect the client just added (Xray validates that the
+                    # uuid is present in the live clients[] before handing a config out).
+                    params = await driver.read_params(remote)
                 deadline.reschedule(None)
                 sc.params_json = params
                 cfg = Config(user_id=user.id, server_id=server_id, container=container,
@@ -135,8 +138,12 @@ async def export_config(db: AsyncSession, state: Any, cfg: Config) -> dict[str, 
     if sc is None:
         return None
     settings = state.settings
-    rendered = get_driver(cfg.container).render(ClientMaterial(cfg.client_id, material), sc.params_json, server.host,
-                                                (settings.dns1, settings.dns2), cfg.name)
+    try:
+        rendered = get_driver(cfg.container).render(ClientMaterial(cfg.client_id, material), sc.params_json,
+                                                    server.host, (settings.dns1, settings.dns2), cfg.name)
+    except ValueError as e:
+        # The driver refuses to hand out a config that cannot work (e.g. Xray server invariants failed).
+        raise ApiError(422, "render_failed", str(e)) from e
     return {"vpn_key": rendered.vpn_key, "native": rendered.native, "native_filename": rendered.native_filename,
             "files": [{"kind": f.kind, "filename": f.filename, "content": f.content} for f in rendered.extra_files],
             # Services (SOCKS5, Telegram proxies) have no vpn:// key; their QR is the link itself.
