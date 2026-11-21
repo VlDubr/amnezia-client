@@ -20,6 +20,7 @@ class SshTarget:
     password: str | None
     private_key: str | None
     host_key: str | None  # OpenSSH public key line pinned on first contact (TOFU); None accepts any key
+    jump: "SshTarget | None" = None  # reach this host through another target's connection (SSH tunnel)
 
 
 @dataclass(frozen=True)
@@ -37,11 +38,20 @@ class HostKeyMismatch(RemoteError):
     pass
 
 
-async def fetch_host_key(host: str, port: int) -> str:
+async def fetch_host_key(host: str, port: int, jump: SshTarget | None = None) -> str:
+    """Reads the host key of host:port, tunnelling through `jump` when the host only answers SSH there."""
+    chain: list[asyncssh.SSHClientConnection] = []
     try:
-        key = await asyncio.wait_for(asyncssh.get_server_host_key(host, port), CONNECT_TIMEOUT)
+        kwargs: dict = {}
+        if jump is not None:
+            kwargs["tunnel"] = await _connect(jump, chain)
+        key = await asyncio.wait_for(asyncssh.get_server_host_key(host, port, **kwargs), CONNECT_TIMEOUT)
     except (OSError, asyncssh.Error, TimeoutError) as e:
         raise RemoteError(f"cannot reach {host}:{port}: {e}") from e
+    except ValueError as e:  # a malformed jump key must be a 4xx, not a 500
+        raise RemoteError(f"cannot reach {host}:{port}: {e}") from e
+    finally:
+        await _close_chain(chain)
     if key is None:
         raise RemoteError(f"no host key received from {host}:{port}")
     return key.export_public_key("openssh").decode().strip()
@@ -86,8 +96,7 @@ class Remote:
         return [line.strip() for line in out.splitlines() if line.strip()]
 
 
-@asynccontextmanager
-async def open_remote(target: SshTarget) -> AsyncIterator[Remote]:
+def _connection_options(target: SshTarget) -> dict:
     options: dict = {"username": target.user, "connect_timeout": CONNECT_TIMEOUT}
     if target.password:
         options["password"] = target.password
@@ -101,14 +110,52 @@ async def open_remote(target: SshTarget) -> AsyncIterator[Remote]:
         options["server_host_key_algs"] = [alg.decode() for alg in pinned.sig_algorithms]
     else:
         options["known_hosts"] = None
-    try:
-        conn = await asyncssh.connect(target.host, target.port, **options)
-    except asyncssh.HostKeyNotVerifiable as e:
-        raise HostKeyMismatch(f"host key of {target.host} changed") from e
-    except (OSError, asyncssh.Error, TimeoutError) as e:
-        raise RemoteError(f"cannot connect to {target.host}:{target.port}: {e}") from e
-    try:
-        yield Remote(conn, target.host)
-    finally:
+    return options
+
+
+async def _close_chain(chain: list[asyncssh.SSHClientConnection]) -> None:
+    for conn in reversed(chain):
         conn.close()
         await conn.wait_closed()
+
+
+async def _connect(target: SshTarget, chain: list[asyncssh.SSHClientConnection] | None = None) -> (
+        asyncssh.SSHClientConnection):
+    """Connects to the target, tunnelling through its jump (recursively) when one is set. Every connection
+    established for the hop chain is appended to `chain`, so the caller can close all of them. Each hop is
+    verified against its own pinned host key. On any failure (including cancellation) the hops opened so far
+    are closed before the error propagates."""
+    hops = chain if chain is not None else []
+    try:
+        tunnel: asyncssh.SSHClientConnection | None = None
+        if target.jump is not None:
+            tunnel = await _connect(target.jump, hops)
+        try:
+            options = _connection_options(target)  # a malformed key must not leak the jump opened above
+        except ValueError as e:
+            raise RemoteError(f"cannot connect to {target.host}:{target.port}: {e}") from e
+        if tunnel is not None:
+            options["tunnel"] = tunnel
+        try:
+            conn = await asyncssh.connect(target.host, target.port, **options)
+        except asyncssh.HostKeyNotVerifiable as e:
+            raise HostKeyMismatch(f"host key of {target.host} changed") from e
+        except (OSError, asyncssh.Error, TimeoutError) as e:
+            raise RemoteError(f"cannot connect to {target.host}:{target.port}: {e}") from e
+        except ValueError as e:  # malformed key material
+            raise RemoteError(f"cannot connect to {target.host}:{target.port}: {e}") from e
+        hops.append(conn)
+        return conn
+    except BaseException:
+        await _close_chain(hops)
+        raise
+
+
+@asynccontextmanager
+async def open_remote(target: SshTarget) -> AsyncIterator[Remote]:
+    chain: list[asyncssh.SSHClientConnection] = []
+    try:
+        conn = await _connect(target, chain)
+        yield Remote(conn, target.host)
+    finally:
+        await _close_chain(chain)

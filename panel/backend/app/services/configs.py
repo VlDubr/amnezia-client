@@ -140,8 +140,8 @@ async def export_config(db: AsyncSession, state: Any, cfg: Config) -> dict[str, 
     settings = state.settings
     try:
         rendered = get_driver(cfg.container).render(ClientMaterial(cfg.client_id, material), sc.params_json,
-                                                    server.host, (settings.dns1, settings.dns2), cfg.name,
-                                                    sc.render_options_json or None)
+                                                    server.client_host or server.host, (settings.dns1, settings.dns2),
+                                                    cfg.name, sc.render_options_json or None)
     except ValueError as e:
         # The driver refuses to hand out a config that cannot work (e.g. Xray server invariants failed).
         raise ApiError(422, "render_failed", str(e)) from e

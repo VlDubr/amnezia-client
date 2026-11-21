@@ -1,9 +1,10 @@
+import json
 from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,12 +17,28 @@ from app.drivers.base import get_driver, installable_containers, supported_conta
 from app.drivers.xray import XrayRenderOptions
 from app.errors import ApiError
 from app.jobs.queue import enqueue
+from app.security.secretbox import SecretBox
 from app.services import load_summary
-from app.services.servers import seal_ssh_secret
+from app.services.servers import jump_target, seal_jump_secret, seal_ssh_secret
 from app.services.sync import enqueue_server_sync
-from app.ssh.conn import RemoteError
+from app.ssh.conn import RemoteError, SshTarget
 
 router = APIRouter(prefix="/api/admin/servers", tags=["admin"])
+
+
+class JumpIn(BaseModel):
+    """An SSH jump host the panel connects to the server through (the server may only accept SSH from it)."""
+    host: str = Field(min_length=1, max_length=255)
+    port: int = Field(default=22, ge=1, le=65535)
+    user: str = Field(min_length=1, max_length=64)
+    password: str | None = None
+    private_key: str | None = None
+
+    @model_validator(mode="after")
+    def _credential_required(self) -> "JumpIn":
+        if not self.password and not self.private_key:
+            raise ValueError("give a jump password or a private key")
+        return self
 
 
 class ServerIn(BaseModel):
@@ -32,6 +49,21 @@ class ServerIn(BaseModel):
     ssh_password: str | None = None
     ssh_private_key: str | None = None
     enabled_for_users: bool = True
+    # Address clients connect to when it differs from the SSH host (a relay in front of this server).
+    client_host: str | None = Field(default=None, max_length=255)
+    ssh_jump: JumpIn | None = None
+
+    @field_validator("client_host")
+    @classmethod
+    def _clean_client_host(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = v.strip()
+        if not v:
+            return None
+        if any(c.isspace() or c in "/@#?\\\"'<>|" for c in v):
+            raise ValueError("client_host must be a bare hostname or IP")
+        return v
 
 
 class ServerPatch(BaseModel):
@@ -45,6 +77,20 @@ class ServerPatch(BaseModel):
     bandwidth_mbps: int | None = Field(default=None, ge=1, le=1_000_000)
     expected_clients: int | None = Field(default=None, ge=1, le=100_000)
     metrics_iface: str | None = Field(default=None, pattern=IFACE_RE.pattern)
+    client_host: str | None = Field(default=None, max_length=255)  # an explicit null falls back to host
+    ssh_jump: JumpIn | None = None  # an explicit null removes the jump host
+
+    @field_validator("client_host")
+    @classmethod
+    def _clean_client_host(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = v.strip()
+        if not v:
+            return None
+        if any(c.isspace() or c in "/@#?\\\"'<>|" for c in v):
+            raise ValueError("client_host must be a bare hostname or IP")
+        return v
 
 
 class ContainerIn(BaseModel):
@@ -66,7 +112,15 @@ def _iso(dt: datetime | None) -> str | None:
     return dt.isoformat() if dt else None
 
 
-async def server_out(db: AsyncSession, server: Server, level: tuple | None = None) -> dict:
+def _jump_public(box: SecretBox, server: Server) -> dict | None:
+    """The jump host as shown to the admin: never its credentials."""
+    if not server.ssh_jump_enc:
+        return None
+    jump = json.loads(box.decrypt(server.ssh_jump_enc))
+    return {"host": jump.get("host"), "port": jump.get("port") or 22, "user": jump.get("user")}
+
+
+async def server_out(db: AsyncSession, server: Server, box: SecretBox, level: tuple | None = None) -> dict:
     containers = (await db.execute(
         select(ServerContainer).where(ServerContainer.server_id == server.id).order_by(ServerContainer.container)
     )).scalars().all()
@@ -76,6 +130,7 @@ async def server_out(db: AsyncSession, server: Server, level: tuple | None = Non
     return {
         "id": server.id, "name": server.name, "host": server.host, "ssh_port": server.ssh_port,
         "ssh_user": server.ssh_user, "enabled_for_users": server.enabled_for_users, "host_key": server.host_key,
+        "client_host": server.client_host, "ssh_jump": _jump_public(box, server),
         "imported_at": _iso(server.imported_at), "last_ok_at": _iso(server.last_ok_at),
         "last_error": server.last_error, "created_at": _iso(server.created_at), "configs_count": configs,
         "containers": [{"container": c.container, "title": get_driver(c.container).title,
@@ -97,11 +152,21 @@ async def _get(db: AsyncSession, server_id: int) -> Server:
     return server
 
 
-async def _fetch_host_key(request: Request, host: str, port: int) -> str:
+async def _fetch_host_key(request: Request, host: str, port: int, jump: SshTarget | None = None) -> str:
     try:
-        return await request.app.state.fetch_host_key(host, port)
+        return await request.app.state.fetch_host_key(host, port, jump=jump)
     except RemoteError as e:
         raise ApiError(502, "server_unreachable", str(e)) from e
+
+
+def _jump_sealed(box: SecretBox, jump: JumpIn, host_key: str | None) -> str:
+    return seal_jump_secret(box, {"host": jump.host, "port": jump.port, "user": jump.user,
+                                  "password": jump.password, "private_key": jump.private_key, "host_key": host_key})
+
+
+def _jump_target_of(jump: JumpIn, host_key: str | None) -> SshTarget:
+    return SshTarget(host=jump.host, port=jump.port, user=jump.user, password=jump.password,
+                     private_key=jump.private_key, host_key=host_key)
 
 
 def _accepted(body: dict) -> JSONResponse:
@@ -112,17 +177,27 @@ def _accepted(body: dict) -> JSONResponse:
 async def add_server(body: ServerIn, request: Request, admin: AdminDep, db: Db, box: SecretBoxDep):
     if not body.ssh_password and not body.ssh_private_key:
         raise ApiError(422, "ssh_credentials_required", "give an SSH password or a private key")
-    host_key = await _fetch_host_key(request, body.host, body.ssh_port)
+    jump_host_key: str | None = None
+    jump: SshTarget | None = None
+    if body.ssh_jump:
+        jump_host_key = await _fetch_host_key(request, body.ssh_jump.host, body.ssh_jump.port)
+        jump = _jump_target_of(body.ssh_jump, jump_host_key)
+    host_key = await _fetch_host_key(request, body.host, body.ssh_port, jump=jump)
     server = Server(name=body.name, host=body.host, ssh_port=body.ssh_port, ssh_user=body.ssh_user,
                     ssh_secret_enc=seal_ssh_secret(box, body.ssh_password, body.ssh_private_key), host_key=host_key,
+                    client_host=body.client_host,
+                    ssh_jump_enc=_jump_sealed(box, body.ssh_jump, jump_host_key) if body.ssh_jump else None,
                     enabled_for_users=body.enabled_for_users)
     db.add(server)
     await db.flush()
     job = await enqueue_server_sync(db, server.id, "server_import")
-    audit(db, admin.actor, "server_add", f"server:{server.id}", host=body.host)
+    audit(db, admin.actor, "server_add", f"server:{server.id}", host=body.host,
+          **({"client_host": body.client_host} if body.client_host else {}),
+          **({"ssh_jump": {"host": body.ssh_jump.host, "port": body.ssh_jump.port, "user": body.ssh_jump.user}}
+             if body.ssh_jump else {}))
     await db.commit()
     request.app.state.sampler.kick(server.id)  # hardware facts and a first sample without waiting a minute
-    return _accepted({"server": await server_out(db, server), "job_id": job.id})
+    return _accepted({"server": await server_out(db, server, box), "job_id": job.id})
 
 
 @router.get("/installable")
@@ -132,16 +207,16 @@ async def installable(_: AdminDep) -> list[dict]:
 
 
 @router.get("")
-async def list_servers(_: AdminDep, db: Db, clock: ClockDep) -> list[dict]:
+async def list_servers(_: AdminDep, db: Db, box: SecretBoxDep, clock: ClockDep) -> list[dict]:
     servers = (await db.execute(select(Server).order_by(Server.id))).scalars().all()
     levels = await load_summary.levels(db, list(servers), clock.now())  # one query for all servers
-    return [await server_out(db, s, levels[s.id]) for s in servers]
+    return [await server_out(db, s, box, levels[s.id]) for s in servers]
 
 
 @router.get("/{server_id}")
-async def get_server(server_id: int, _: AdminDep, db: Db, clock: ClockDep) -> dict:
+async def get_server(server_id: int, _: AdminDep, db: Db, box: SecretBoxDep, clock: ClockDep) -> dict:
     server = await _get(db, server_id)
-    return await server_out(db, server, await _level(db, server, clock.now()))
+    return await server_out(db, server, box, await _level(db, server, clock.now()))
 
 
 @router.get("/{server_id}/load")
@@ -178,22 +253,36 @@ async def server_load(server_id: int, _: AdminDep, db: Db, clock: ClockDep,
 
 
 @router.patch("/{server_id}")
-async def patch_server(server_id: int, body: ServerPatch, admin: AdminDep, db: Db, box: SecretBoxDep,
-                       clock: ClockDep) -> dict:
+async def patch_server(server_id: int, body: ServerPatch, request: Request, admin: AdminDep, db: Db,
+                       box: SecretBoxDep, clock: ClockDep) -> dict:
     server = await _get(db, server_id)
     changes = body.model_dump(exclude_unset=True)
     for field in ("name", "enabled_for_users", "ssh_port", "ssh_user"):
         if changes.get(field) is not None:
             setattr(server, field, changes[field])
-    for field in ("bandwidth_mbps", "expected_clients", "metrics_iface"):
+    for field in ("bandwidth_mbps", "expected_clients", "metrics_iface", "client_host"):
         if field in changes:  # an explicit null clears
             setattr(server, field, changes[field])
     if body.ssh_password or body.ssh_private_key:
         server.ssh_secret_enc = seal_ssh_secret(box, body.ssh_password, body.ssh_private_key)
+    if "ssh_jump" in changes:
+        if body.ssh_jump is None:
+            server.ssh_jump_enc = None
+        else:
+            jump_host_key = await _fetch_host_key(request, body.ssh_jump.host, body.ssh_jump.port)
+            jump = _jump_target_of(body.ssh_jump, jump_host_key)
+            server.ssh_jump_enc = _jump_sealed(box, body.ssh_jump, jump_host_key)
+            # Pin the server key through the new tunnel only when it is not pinned yet; a changed key
+            # must go through the explicit host-key/accept flow, not be silently re-pinned by a PATCH.
+            if server.host_key is None:
+                server.host_key = await _fetch_host_key(request, server.host, server.ssh_port, jump=jump)
     audit(db, admin.actor, "server_update", f"server:{server.id}",
-          fields=sorted(k for k in changes if not k.startswith("ssh_password") and k != "ssh_private_key"))
+          fields=sorted(k for k in changes
+                        if not k.startswith("ssh_password") and k not in ("ssh_private_key", "ssh_jump")),
+          **({"ssh_jump": {"host": body.ssh_jump.host, "port": body.ssh_jump.port, "user": body.ssh_jump.user}}
+             if body.ssh_jump else {}))
     await db.commit()
-    return await server_out(db, server, await _level(db, server, clock.now()))
+    return await server_out(db, server, box, await _level(db, server, clock.now()))
 
 
 @router.delete("/{server_id}", status_code=204)
@@ -214,9 +303,10 @@ async def sync_server(server_id: int, admin: AdminDep, db: Db):
 
 
 @router.post("/{server_id}/host-key/accept", status_code=202)
-async def accept_host_key(server_id: int, request: Request, admin: AdminDep, db: Db, clock: ClockDep):
+async def accept_host_key(server_id: int, request: Request, admin: AdminDep, db: Db, box: SecretBoxDep,
+                          clock: ClockDep):
     server = await _get(db, server_id)
-    server.host_key = await _fetch_host_key(request, server.host, server.ssh_port)
+    server.host_key = await _fetch_host_key(request, server.host, server.ssh_port, jump=jump_target(server, box))
     server.last_error = None
     job = await enqueue_server_sync(db, server_id)
     audit(db, admin.actor, "server_host_key_accept", f"server:{server_id}", host_key=server.host_key)

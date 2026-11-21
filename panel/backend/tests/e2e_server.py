@@ -39,7 +39,7 @@ async def serve(database_url: str, port: int) -> None:
     remote = awg_server()
     app.state.remote_factory = remote_factory_for(remote)
 
-    async def fetch_host_key(host: str, port_: int) -> str:
+    async def fetch_host_key(host: str, port_: int, jump=None) -> str:
         return "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIE2eTestHostKey"
 
     app.state.fetch_host_key = fetch_host_key

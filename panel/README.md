@@ -143,6 +143,14 @@ The SSH user needs `sudo` without a password, as for the desktop app.
 
 If a server's host key changes (for example, after a reinstall), the panel stops working with that server until an administrator accepts the new key.
 
+### Cascaded servers: client address and SSH jump host
+
+When clients connect through a relay rather than directly to the server (for example, a Russian entry forwarding to a foreign Xray), set **"Client address (relay)"**: that address goes into the client configs (`address`/`server`, `hostName`, the `vless://` link), while SSH management and the REALITY invariant checks stay bound to the server's real address. Empty means the server address is used. Limitation: the relay address applies to every container on the server and does not change the port; this fits an Xray 443→443 cascade, for other protocols make sure the relay forwards the right port.
+
+When the server only accepts SSH from another host (for example, an exit node behind a firewall reachable only through an intermediate VPS), fill in the **SSH jump host**: address, port, user and a password or key. The panel reaches the server through that jump (an SSH tunnel); each hop's host key is stored separately. Jump secrets are encrypted in the database and never shown in the UI. Changing the jump does not re-pin the server's stored host key — use "Accept new key" if it changed. Remove the jump with the "Remove jump" button (or `PATCH {"ssh_jump": null}`).
+
+Example for a Moscow → Germany → Netherlands cascade: server `31.76.54.100` (Germany, Xray), jump `194.87.216.254` (Netherlands), client address `89.37.193.163` (Moscow relay).
+
 ## Operations
 
 - **Logs:** `docker compose logs -f backend`.

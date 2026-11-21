@@ -76,6 +76,8 @@ export type ServerInfo = {
   ssh_user: string;
   enabled_for_users: boolean;
   host_key: string | null;
+  client_host: string | null;
+  ssh_jump: { host: string; port: number; user: string } | null;
   imported_at: string | null;
   last_ok_at: string | null;
   last_error: string | null;

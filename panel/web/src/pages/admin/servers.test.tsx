@@ -11,7 +11,8 @@ import { renderApp } from "../../../test/render";
 function srv(over: Partial<ServerInfo> = {}): ServerInfo {
   return {
     id: 10, name: "nl-1", host: "203.0.113.10", ssh_port: 22, ssh_user: "root", enabled_for_users: true,
-    host_key: "ssh-ed25519 AAAA", imported_at: "2026-09-26T00:00:00Z", last_ok_at: "2026-09-26T00:00:00Z",
+    host_key: "ssh-ed25519 AAAA", client_host: null, ssh_jump: null, imported_at: "2026-09-26T00:00:00Z",
+    last_ok_at: "2026-09-26T00:00:00Z",
     last_error: null, created_at: "2026-09-26T00:00:00Z", configs_count: 2,
     containers: [{ container: "amnezia-awg2", title: "AmneziaWG", port: "55424" }],
     load: "medium", load_pct: 62, bandwidth_mbps: 1000, expected_clients: null, metrics_iface: null, ...over,
@@ -59,6 +60,54 @@ describe("servers", () => {
     await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Добавить сервер" }));
     expect(await screen.findByText("Готово", {}, { timeout: 4000 })).toBeInTheDocument();
     expect(body).toMatchObject({ name: "nl-1", host: "203.0.113.10", ssh_port: 22, ssh_user: "root", ssh_password: "pw" });
+  });
+
+  it("sends client_host and ssh_jump when set", async () => {
+    adminSession();
+    let body: unknown = null;
+    server.use(
+      http.get("/api/admin/servers", () => HttpResponse.json([])),
+      http.post("/api/admin/servers", async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ server: srv(), job_id: 5 }, { status: 202 });
+      }),
+    );
+    jobs(["done"]);
+    renderApp("/admin/servers");
+    await userEvent.click(await screen.findByRole("button", { name: "Добавить сервер" }));
+    await userEvent.type(await screen.findByLabelText(/Название/), "de-1");
+    await userEvent.type(screen.getByLabelText(/Адрес сервера/), "31.76.54.100");
+    await userEvent.type(screen.getByLabelText(/SSH-пароль/), "pw");
+    await userEvent.type(screen.getByLabelText(/Адрес для клиентов/), "89.37.193.163");
+    await userEvent.type(screen.getByLabelText(/Jump: адрес/), "194.87.216.254");
+    await userEvent.type(screen.getByLabelText(/Jump: пароль/), "jpw");
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Добавить сервер" }));
+    expect(await screen.findByText("Готово", {}, { timeout: 4000 })).toBeInTheDocument();
+    expect(body).toMatchObject({
+      client_host: "89.37.193.163",
+      ssh_jump: { host: "194.87.216.254", port: 22, user: "root", password: "jpw", private_key: null },
+    });
+  });
+
+  it("sends null client_host and ssh_jump when left empty", async () => {
+    adminSession();
+    let body: unknown = null;
+    server.use(
+      http.get("/api/admin/servers", () => HttpResponse.json([])),
+      http.post("/api/admin/servers", async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ server: srv(), job_id: 5 }, { status: 202 });
+      }),
+    );
+    jobs(["done"]);
+    renderApp("/admin/servers");
+    await userEvent.click(await screen.findByRole("button", { name: "Добавить сервер" }));
+    await userEvent.type(await screen.findByLabelText(/Название/), "nl-1");
+    await userEvent.type(screen.getByLabelText(/Адрес сервера/), "h");
+    await userEvent.type(screen.getByLabelText(/SSH-пароль/), "pw");
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Добавить сервер" }));
+    expect(await screen.findByText("Готово", {}, { timeout: 4000 })).toBeInTheDocument();
+    expect(body).toMatchObject({ client_host: null, ssh_jump: null });
   });
 
   it("shows a connection error when adding", async () => {
@@ -287,6 +336,30 @@ describe("server page", () => {
     renderApp("/admin/servers/10");
     await screen.findByText("nl-1");
     expect(screen.queryByText("Настройки Xray-конфигов")).not.toBeInTheDocument();
+  });
+
+  it("edits the relay address and jump through PATCH", async () => {
+    page(srv({ client_host: "89.37.193.163", ssh_jump: { host: "194.87.216.254", port: 22, user: "root" } }));
+    const bodies: unknown[] = [];
+    server.use(
+      http.patch("/api/admin/servers/10", async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json(srv({ client_host: "1.2.3.4" }));
+      }),
+    );
+    renderApp("/admin/servers/10");
+    expect(await screen.findByText(/Адрес для клиентов \(relay\): 89.37.193.163/)).toBeInTheDocument();
+    expect(screen.getByText(/SSH jump-хост: 194\.87\.216\.254:22 \(root\)/)).toBeInTheDocument();
+    await userEvent.click(screen.getAllByRole("button", { name: "Адрес для клиентов (relay)" })[0]);
+    const dialog = await screen.findByRole("dialog");
+    const relay = within(dialog).getByLabelText(/Адрес для клиентов/);
+    await userEvent.clear(relay);
+    await userEvent.type(relay, "1.2.3.4");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Сохранить" }));
+    await waitFor(() => expect(bodies[0]).toEqual({ client_host: "1.2.3.4" }));
+    await userEvent.click(screen.getAllByRole("button", { name: "Убрать jump" })[0]);
+    await userEvent.click(await screen.findByRole("button", { name: "Да" }));
+    await waitFor(() => expect(bodies[1]).toEqual({ ssh_jump: null }));
   });
 
   it("removes the server from the panel", async () => {

@@ -20,10 +20,24 @@ def seal_ssh_secret(box: SecretBox, password: str | None, private_key: str | Non
     return box.encrypt(json.dumps({"password": password, "private_key": private_key}))
 
 
+def seal_jump_secret(box: SecretBox, jump: dict) -> str:
+    return box.encrypt(json.dumps(jump))
+
+
+def jump_target(server: Server, box: SecretBox) -> SshTarget | None:
+    """The server's SSH jump host, or None when the server is reached directly."""
+    if not server.ssh_jump_enc:
+        return None
+    jump = json.loads(box.decrypt(server.ssh_jump_enc))
+    return SshTarget(host=jump.get("host", ""), port=jump.get("port") or 22, user=jump.get("user", "root"),
+                     password=jump.get("password"), private_key=jump.get("private_key"),
+                     host_key=jump.get("host_key"))
+
+
 def ssh_target(server: Server, box: SecretBox) -> SshTarget:
     secret = json.loads(box.decrypt(server.ssh_secret_enc))
     return SshTarget(host=server.host, port=server.ssh_port, user=server.ssh_user, password=secret.get("password"),
-                     private_key=secret.get("private_key"), host_key=server.host_key)
+                     private_key=secret.get("private_key"), host_key=server.host_key, jump=jump_target(server, box))
 
 
 def make_remote_factory(box: SecretBox) -> RemoteFactory:

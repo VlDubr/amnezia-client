@@ -125,3 +125,64 @@ async def test_install_port_must_be_a_real_port(client, admin_token, app, fake_r
         r = await client.post(f"/api/admin/servers/{s['id']}/containers",
                               json={"container": "amnezia-wireguard", "port": port}, headers=bearer(admin_token))
         assert r.status_code == 422, port
+
+
+JUMP = {"host": "194.87.216.254", "port": 22, "user": "root", "password": "juMp-s3cret"}
+
+
+async def test_add_server_with_relay_and_jump(db, client, admin_token, app, fake_remote):
+    from sqlalchemy import select as sa_select
+
+    from app.db.models import AuditLog
+
+    r = await client.post("/api/admin/servers",
+                          json={"name": "de-1", "host": "31.76.54.100", "ssh_user": "root", "ssh_password": "pw",
+                                "client_host": "89.37.193.163", "ssh_jump": JUMP}, headers=bearer(admin_token))
+    assert r.status_code == 202, r.text
+    body = r.json()
+    assert body["server"]["client_host"] == "89.37.193.163"
+    assert body["server"]["ssh_jump"] == {"host": "194.87.216.254", "port": 22, "user": "root"}
+    assert "juMp-s3cret" not in r.text and "password" not in str(body["server"]["ssh_jump"])
+    await run_jobs(app)
+    server = (await client.get(f"/api/admin/servers/{body['server']['id']}", headers=bearer(admin_token))).json()
+    assert server["ssh_jump"] == {"host": "194.87.216.254", "port": 22, "user": "root"}
+    row = await db.get(Server, body["server"]["id"])
+    assert "juMp-s3cret" not in row.ssh_jump_enc
+    assert b"juMp-s3cret" in SecretBox(MASTER_KEY).decrypt(row.ssh_jump_enc)
+    assert row.ssh_jump_enc  # sealed, with the jump host key inside
+    entry = (await db.execute(sa_select(AuditLog).where(AuditLog.action == "server_add"))).scalar_one()
+    assert entry.details_json["ssh_jump"] == {"host": "194.87.216.254", "port": 22, "user": "root"}
+    assert "juMp-s3cret" not in str(entry.details_json)
+
+
+async def test_add_server_jump_requires_a_credential(client, admin_token, fake_remote):
+    r = await client.post("/api/admin/servers",
+                          json={"name": "x", "host": "h", "ssh_user": "root", "ssh_password": "p",
+                                "ssh_jump": {"host": "j", "user": "root"}}, headers=bearer(admin_token))
+    assert r.status_code == 422
+
+
+async def test_patch_client_host_and_jump_clearing(db, client, admin_token, app, fake_remote):
+    s = await add_server(client, admin_token, app, client_host="89.37.193.163", ssh_jump=JUMP)
+    r = await client.patch(f"/api/admin/servers/{s['id']}", json={"client_host": None}, headers=bearer(admin_token))
+    assert r.json()["client_host"] is None
+    assert r.json()["ssh_jump"] == {"host": "194.87.216.254", "port": 22, "user": "root"}  # untouched
+    await db.refresh(await db.get(Server, s["id"]))
+    row = await db.get(Server, s["id"])
+    assert row.ssh_jump_enc is not None
+
+    r = await client.patch(f"/api/admin/servers/{s['id']}", json={"ssh_jump": None}, headers=bearer(admin_token))
+    assert r.json()["ssh_jump"] is None
+    await db.refresh(await db.get(Server, s["id"]))
+    row = await db.get(Server, s["id"])
+    assert row.ssh_jump_enc is None
+
+    # replacing the jump keeps the already pinned server host key (a changed key needs host-key/accept)
+    new_jump = {"host": "185.10.20.30", "port": 22022, "user": "jump", "private_key": "KEYDATA"}
+    r = await client.patch(f"/api/admin/servers/{s['id']}", json={"ssh_jump": new_jump}, headers=bearer(admin_token))
+    assert r.json()["ssh_jump"] == {"host": "185.10.20.30", "port": 22022, "user": "jump"}
+    assert "KEYDATA" not in r.text
+    await db.refresh(await db.get(Server, s["id"]))
+    row = await db.get(Server, s["id"])
+    assert b"KEYDATA" in SecretBox(MASTER_KEY).decrypt(row.ssh_jump_enc)
+    assert row.host_key == "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestHostKey"

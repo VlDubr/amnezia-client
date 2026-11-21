@@ -139,7 +139,7 @@ def fake_remote(app):
     remote = awg_server()
     app.state.remote_factory = remote_factory_for(remote)
 
-    async def fetch_host_key(host, port):
+    async def fetch_host_key(host, port, jump=None):
         remote._check()
         return "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestHostKey"
 

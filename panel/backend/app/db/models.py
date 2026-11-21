@@ -81,6 +81,11 @@ class Server(Base):
     ssh_user: Mapped[str] = mapped_column(String(64))
     ssh_secret_enc: Mapped[str] = mapped_column(Text)
     host_key: Mapped[str | None] = mapped_column(Text)
+    # Address clients connect to when it differs from the SSH host (e.g. a relay in front of this server).
+    client_host: Mapped[str | None] = mapped_column(String(255))
+    # Optional SSH jump host (encrypted JSON: host/port/user/password/private_key); used when the server
+    # only accepts SSH from the jump (e.g. an exit node behind a firewall).
+    ssh_jump_enc: Mapped[str | None] = mapped_column(Text)
     enabled_for_users: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
     prepared_at: Mapped[datetime | None] = mapped_column(TS)
     imported_at: Mapped[datetime | None] = mapped_column(TS)

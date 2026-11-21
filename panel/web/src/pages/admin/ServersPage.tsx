@@ -13,7 +13,10 @@ import { ErrorAlert } from "../../components/ErrorAlert";
 import { JobStatus } from "../../components/JobStatus";
 import { formatDateTime } from "../../lib/format";
 
-const EMPTY = { name: "", host: "", ssh_port: 22, ssh_user: "root", ssh_password: "", ssh_private_key: "", enabled_for_users: true };
+const EMPTY = {
+  name: "", host: "", ssh_port: 22, ssh_user: "root", ssh_password: "", ssh_private_key: "", enabled_for_users: true,
+  client_host: "", ssh_jump_host: "", ssh_jump_port: 22, ssh_jump_user: "root", ssh_jump_password: "", ssh_jump_key: "",
+};
 
 export default function ServersPage() {
   const { t, i18n } = useTranslation();
@@ -22,15 +25,25 @@ export default function ServersPage() {
   const [form, setForm] = useState(EMPTY);
   const [jobId, setJobId] = useState<number | null>(null);
   const add = useAction(
-    () =>
-      api<{ server: ServerInfo; job_id: number }>("/api/admin/servers", {
+    () => {
+      const jump = form.ssh_jump_host.trim()
+        ? {
+            host: form.ssh_jump_host.trim(), port: form.ssh_jump_port, user: form.ssh_jump_user.trim(),
+            password: form.ssh_jump_password || null, private_key: form.ssh_jump_key || null,
+          }
+        : null;
+      return api<{ server: ServerInfo; job_id: number }>("/api/admin/servers", {
         method: "POST",
         body: {
-          ...form,
+          name: form.name, host: form.host, ssh_port: form.ssh_port, ssh_user: form.ssh_user,
           ssh_password: form.ssh_password || null,
           ssh_private_key: form.ssh_private_key || null,
+          enabled_for_users: form.enabled_for_users,
+          client_host: form.client_host.trim() || null,
+          ssh_jump: jump,
         },
-      }),
+      });
+    },
     [keys.servers],
     (res) => {
       setAdding(false);
@@ -126,6 +139,29 @@ export default function ServersPage() {
             <Textarea label={t("admin.ssh_key")} value={form.ssh_private_key} autosize minRows={2} maxRows={6}
               styles={{ input: { fontFamily: "monospace", fontSize: 12 } }}
               onChange={(e) => setForm({ ...form, ssh_private_key: e.currentTarget.value })} />
+            <Stack gap="xs">
+              <Text fw={500} size="sm">{t("admin.relay_section")}</Text>
+              <TextInput label={t("admin.client_host")} description={t("admin.client_host_hint")}
+                value={form.client_host}
+                onChange={(e) => setForm({ ...form, client_host: e.currentTarget.value.trim() })} />
+              <TextInput label={t("admin.ssh_jump_host")} value={form.ssh_jump_host}
+                onChange={(e) => setForm({ ...form, ssh_jump_host: e.currentTarget.value.trim() })} />
+              {form.ssh_jump_host.trim() !== "" && (
+                <>
+                  <Group grow>
+                    <NumberInput label={t("admin.ssh_jump_port")} value={form.ssh_jump_port} min={1} max={65535}
+                      allowDecimal={false} onChange={(v) => setForm({ ...form, ssh_jump_port: Number(v) || 22 })} />
+                    <TextInput label={t("admin.ssh_jump_user")} value={form.ssh_jump_user}
+                      onChange={(e) => setForm({ ...form, ssh_jump_user: e.currentTarget.value.trim() })} />
+                  </Group>
+                  <PasswordInput label={t("admin.ssh_jump_password")} value={form.ssh_jump_password} autoComplete="off"
+                    onChange={(e) => setForm({ ...form, ssh_jump_password: e.currentTarget.value })} />
+                  <Textarea label={t("admin.ssh_jump_key")} value={form.ssh_jump_key} autosize minRows={2} maxRows={6}
+                    styles={{ input: { fontFamily: "monospace", fontSize: 12 } }}
+                    onChange={(e) => setForm({ ...form, ssh_jump_key: e.currentTarget.value })} />
+                </>
+              )}
+            </Stack>
             <Switch label={t("admin.enabled_for_users")} checked={form.enabled_for_users}
               onChange={(e) => setForm({ ...form, enabled_for_users: e.currentTarget.checked })} />
             <Group justify="flex-end">
